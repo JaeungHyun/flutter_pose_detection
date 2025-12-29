@@ -1,0 +1,473 @@
+package com.example.npu_pose_detection
+
+import android.content.Context
+import android.os.Build
+import io.flutter.embedding.engine.plugins.FlutterPlugin
+import io.flutter.plugin.common.EventChannel
+import io.flutter.plugin.common.MethodCall
+import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.MethodChannel.MethodCallHandler
+import io.flutter.plugin.common.MethodChannel.Result
+import kotlinx.coroutines.*
+import com.example.npu_pose_detection.models.*
+import java.util.Base64
+
+/**
+ * Flutter plugin for NPU-accelerated pose detection on Android.
+ *
+ * Uses TensorFlow Lite with GPU delegate and NNAPI fallback.
+ */
+class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamHandler {
+
+    companion object {
+        private const val METHOD_CHANNEL = "com.example.npu_pose_detection/methods"
+        private const val EVENT_CHANNEL = "com.example.npu_pose_detection/frames"
+        private const val VIDEO_PROGRESS_CHANNEL = "com.example.npu_pose_detection/video_progress"
+    }
+
+    private lateinit var channel: MethodChannel
+    private lateinit var eventChannel: EventChannel
+    private lateinit var videoProgressChannel: EventChannel
+    private lateinit var context: Context
+    private var poseDetector: TFLitePoseDetector? = null
+    private var config: DetectorConfig = DetectorConfig()
+
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
+    // Stream handling
+    private var frameEventSink: EventChannel.EventSink? = null
+    private var videoProgressEventSink: EventChannel.EventSink? = null
+    private var isStreamingActive = false
+    private var frameCount = 0
+    private val fpsCalculator = FPSCalculator()
+    private var videoProcessor: VideoProcessor? = null
+
+    override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
+        context = flutterPluginBinding.applicationContext
+        channel = MethodChannel(flutterPluginBinding.binaryMessenger, METHOD_CHANNEL)
+        channel.setMethodCallHandler(this)
+
+        // Setup EventChannel for camera frame streaming
+        eventChannel = EventChannel(flutterPluginBinding.binaryMessenger, EVENT_CHANNEL)
+        eventChannel.setStreamHandler(this)
+
+        // Setup EventChannel for video progress
+        videoProgressChannel = EventChannel(flutterPluginBinding.binaryMessenger, VIDEO_PROGRESS_CHANNEL)
+        videoProgressChannel.setStreamHandler(VideoProgressStreamHandler(this))
+    }
+
+    override fun onMethodCall(call: MethodCall, result: Result) {
+        when (call.method) {
+            "initialize" -> handleInitialize(call, result)
+            "detectPose" -> handleDetectPose(call, result)
+            "detectPoseFromFile" -> handleDetectPoseFromFile(call, result)
+            "processFrame" -> handleProcessFrame(call, result)
+            "startCameraDetection" -> handleStartCameraDetection(result)
+            "stopCameraDetection" -> handleStopCameraDetection(result)
+            "analyzeVideo" -> handleAnalyzeVideo(call, result)
+            "cancelVideoAnalysis" -> handleCancelVideoAnalysis(result)
+            "updateConfig" -> handleUpdateConfig(call, result)
+            "getDeviceCapabilities" -> handleGetDeviceCapabilities(result)
+            "dispose" -> handleDispose(result)
+            else -> result.notImplemented()
+        }
+    }
+
+    // StreamHandler implementation
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+        frameEventSink = events
+    }
+
+    override fun onCancel(arguments: Any?) {
+        frameEventSink = null
+        isStreamingActive = false
+    }
+
+    // MARK: - Initialize
+
+    private fun handleInitialize(call: MethodCall, result: Result) {
+        val args = call.arguments as? Map<*, *>
+        val configMap = args?.get("config") as? Map<*, *>
+
+        if (configMap == null) {
+            result.success(errorResponse("invalidArguments", "Missing config"))
+            return
+        }
+
+        config = DetectorConfig.fromMap(configMap)
+
+        scope.launch {
+            try {
+                poseDetector = TFLitePoseDetector(context)
+                val mode = withContext(Dispatchers.IO) {
+                    poseDetector?.initialize(config)
+                }
+
+                result.success(mapOf(
+                    "success" to true,
+                    "accelerationMode" to (mode?.name?.lowercase() ?: "unknown"),
+                    "modelVersion" to "movenet_lightning_v4"
+                ))
+            } catch (e: Exception) {
+                result.success(errorResponse(
+                    "modelLoadFailed",
+                    "Failed to initialize TFLite detector",
+                    e.message
+                ))
+            }
+        }
+    }
+
+    // MARK: - Detect Pose
+
+    private fun handleDetectPose(call: MethodCall, result: Result) {
+        val detector = poseDetector
+        if (detector == null) {
+            result.success(errorResponse("notInitialized", "Detector not initialized"))
+            return
+        }
+
+        val args = call.arguments as? Map<*, *>
+        val imageDataBase64 = args?.get("imageData") as? String
+
+        if (imageDataBase64 == null) {
+            result.success(errorResponse("invalidImageFormat", "Invalid image data"))
+            return
+        }
+
+        scope.launch {
+            try {
+                val imageData = Base64.getDecoder().decode(imageDataBase64)
+                val poseResult = withContext(Dispatchers.IO) {
+                    detector.detectPose(imageData)
+                }
+
+                result.success(mapOf(
+                    "success" to true,
+                    "result" to poseResult.toMap()
+                ))
+            } catch (e: Exception) {
+                result.success(errorResponse(
+                    "inferenceFailed",
+                    "Pose detection failed",
+                    e.message
+                ))
+            }
+        }
+    }
+
+    // MARK: - Detect Pose From File
+
+    private fun handleDetectPoseFromFile(call: MethodCall, result: Result) {
+        val detector = poseDetector
+        if (detector == null) {
+            result.success(errorResponse("notInitialized", "Detector not initialized"))
+            return
+        }
+
+        val args = call.arguments as? Map<*, *>
+        val filePath = args?.get("filePath") as? String
+
+        if (filePath == null) {
+            result.success(errorResponse("invalidArguments", "Missing file path"))
+            return
+        }
+
+        scope.launch {
+            try {
+                val poseResult = withContext(Dispatchers.IO) {
+                    detector.detectPoseFromFile(filePath)
+                }
+
+                result.success(mapOf(
+                    "success" to true,
+                    "result" to poseResult.toMap()
+                ))
+            } catch (e: Exception) {
+                result.success(errorResponse(
+                    "inferenceFailed",
+                    "Pose detection failed",
+                    e.message
+                ))
+            }
+        }
+    }
+
+    // MARK: - Update Config
+
+    private fun handleUpdateConfig(call: MethodCall, result: Result) {
+        val args = call.arguments as? Map<*, *>
+        val configMap = args?.get("config") as? Map<*, *>
+
+        if (configMap == null) {
+            result.success(errorResponse("invalidArguments", "Missing config"))
+            return
+        }
+
+        config = DetectorConfig.fromMap(configMap)
+        poseDetector?.updateConfig(config)
+
+        result.success(mapOf(
+            "success" to true,
+            "requiresReinitialize" to false
+        ))
+    }
+
+    // MARK: - Device Capabilities
+
+    private fun handleGetDeviceCapabilities(result: Result) {
+        val hasNnapi = Build.VERSION.SDK_INT in 27..34
+        val hasGpu = true // Most devices support GPU delegate
+
+        result.success(mapOf(
+            "success" to true,
+            "capabilities" to mapOf(
+                "platform" to "android",
+                "osVersion" to Build.VERSION.RELEASE,
+                "deviceModel" to "${Build.MANUFACTURER} ${Build.MODEL}",
+                "npuInfo" to mapOf(
+                    "type" to "nnapi",
+                    "isAvailable" to hasNnapi,
+                    "performanceTier" to if (hasNnapi) "medium" else "low"
+                ),
+                "hasGpuSupport" to hasGpu,
+                "recommendedMode" to if (hasGpu) "gpu" else "cpu"
+            )
+        ))
+    }
+
+    // MARK: - Process Frame
+
+    private fun handleProcessFrame(call: MethodCall, result: Result) {
+        val detector = poseDetector
+        if (detector == null) {
+            result.success(errorResponse("notInitialized", "Detector not initialized"))
+            return
+        }
+
+        val args = call.arguments as? Map<*, *>
+        @Suppress("UNCHECKED_CAST")
+        val planes = args?.get("planes") as? List<Map<String, Any>>
+        val width = args?.get("width") as? Int
+        val height = args?.get("height") as? Int
+        val format = args?.get("format") as? String ?: "yuv420"
+        val rotation = args?.get("rotation") as? Int ?: 0
+
+        if (planes == null || width == null || height == null) {
+            result.success(errorResponse("invalidArguments", "Missing frame data"))
+            return
+        }
+
+        // Decode base64 bytes
+        val decodedPlanes = planes.map { plane ->
+            val bytesBase64 = plane["bytes"] as? String
+            val bytes = if (bytesBase64 != null) {
+                Base64.getDecoder().decode(bytesBase64)
+            } else {
+                ByteArray(0)
+            }
+            mapOf(
+                "bytes" to bytes,
+                "bytesPerRow" to (plane["bytesPerRow"] as? Int ?: 0),
+                "bytesPerPixel" to (plane["bytesPerPixel"] as? Int ?: 1)
+            )
+        }
+
+        scope.launch {
+            try {
+                val poseResult = withContext(Dispatchers.IO) {
+                    detector.processFrame(decodedPlanes, width, height, format, rotation)
+                }
+
+                result.success(mapOf(
+                    "success" to true,
+                    "result" to poseResult.toMap()
+                ))
+            } catch (e: Exception) {
+                result.success(errorResponse(
+                    "inferenceFailed",
+                    "Frame processing failed",
+                    e.message
+                ))
+            }
+        }
+    }
+
+    // MARK: - Camera Detection
+
+    private fun handleStartCameraDetection(result: Result) {
+        if (poseDetector == null) {
+            result.success(errorResponse("notInitialized", "Detector not initialized"))
+            return
+        }
+
+        isStreamingActive = true
+        frameCount = 0
+        fpsCalculator.reset()
+
+        result.success(mapOf("success" to true))
+    }
+
+    private fun handleStopCameraDetection(result: Result) {
+        isStreamingActive = false
+
+        // Send end event
+        frameEventSink?.success(mapOf(
+            "type" to "end",
+            "reason" to "stopped"
+        ))
+
+        result.success(mapOf("success" to true))
+    }
+
+    // MARK: - Video Analysis
+
+    private fun handleAnalyzeVideo(call: MethodCall, result: Result) {
+        val detector = poseDetector
+        if (detector == null) {
+            result.success(errorResponse("notInitialized", "Detector not initialized"))
+            return
+        }
+
+        val args = call.arguments as? Map<*, *>
+        val videoPath = args?.get("videoPath") as? String
+        val frameInterval = (args?.get("frameInterval") as? Int) ?: 1
+
+        if (videoPath == null) {
+            result.success(errorResponse("invalidArguments", "Missing video path"))
+            return
+        }
+
+        videoProcessor = VideoProcessor(context, detector)
+
+        scope.launch {
+            try {
+                val analysisResult = videoProcessor?.analyzeVideo(
+                    videoPath,
+                    frameInterval
+                ) { progress ->
+                    videoProgressEventSink?.success(progress.toMap())
+                }
+
+                if (analysisResult != null) {
+                    videoProgressEventSink?.success(mapOf("type" to "complete"))
+                    result.success(mapOf(
+                        "success" to true,
+                        "result" to analysisResult.toMap()
+                    ))
+                } else {
+                    result.success(errorResponse("videoAnalysisFailed", "Analysis returned null"))
+                }
+            } catch (e: Exception) {
+                videoProgressEventSink?.success(mapOf(
+                    "type" to "error",
+                    "error" to mapOf(
+                        "code" to "videoAnalysisFailed",
+                        "message" to (e.message ?: "Unknown error")
+                    )
+                ))
+                result.success(errorResponse(
+                    "videoAnalysisFailed",
+                    "Video analysis failed",
+                    e.message
+                ))
+            }
+        }
+    }
+
+    private fun handleCancelVideoAnalysis(result: Result) {
+        videoProcessor?.cancel()
+        videoProgressEventSink?.success(mapOf("type" to "cancelled"))
+        result.success(mapOf("success" to true))
+    }
+
+    // MARK: - Dispose
+
+    private fun handleDispose(result: Result) {
+        isStreamingActive = false
+        videoProcessor?.cancel()
+        videoProcessor = null
+        poseDetector?.dispose()
+        poseDetector = null
+        result.success(mapOf("success" to true))
+    }
+
+    // Public method for VideoProgressStreamHandler
+    fun setVideoProgressEventSink(sink: EventChannel.EventSink?) {
+        videoProgressEventSink = sink
+    }
+
+    // MARK: - Helpers
+
+    private fun errorResponse(
+        code: String,
+        message: String,
+        platformMessage: String? = null
+    ): Map<String, Any> {
+        val error = mutableMapOf<String, Any>(
+            "code" to code,
+            "message" to message
+        )
+        platformMessage?.let { error["platformMessage"] = it }
+
+        return mapOf(
+            "success" to false,
+            "error" to error
+        )
+    }
+
+    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        channel.setMethodCallHandler(null)
+        eventChannel.setStreamHandler(null)
+        videoProgressChannel.setStreamHandler(null)
+        scope.cancel()
+        poseDetector?.dispose()
+        poseDetector = null
+    }
+}
+
+/**
+ * Stream handler for video progress events.
+ */
+class VideoProgressStreamHandler(
+    private val plugin: NpuPoseDetectionPlugin
+) : EventChannel.StreamHandler {
+
+    override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
+        plugin.setVideoProgressEventSink(events)
+    }
+
+    override fun onCancel(arguments: Any?) {
+        plugin.setVideoProgressEventSink(null)
+    }
+}
+
+/**
+ * FPS calculator for streaming.
+ */
+class FPSCalculator {
+    private val timestamps = mutableListOf<Long>()
+    private val windowSize = 30
+
+    fun reset() {
+        timestamps.clear()
+    }
+
+    fun update(): Double {
+        val now = System.currentTimeMillis()
+        timestamps.add(now)
+
+        // Keep only recent timestamps
+        while (timestamps.size > windowSize) {
+            timestamps.removeAt(0)
+        }
+
+        // Calculate FPS from time window
+        if (timestamps.size < 2) return 0.0
+
+        val elapsed = timestamps.last() - timestamps.first()
+        if (elapsed <= 0) return 0.0
+
+        return (timestamps.size - 1) * 1000.0 / elapsed
+    }
+}
