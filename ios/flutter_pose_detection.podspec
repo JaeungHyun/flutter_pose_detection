@@ -16,9 +16,15 @@ Neural Engine acceleration on supported devices.
   s.author           = { 'JaeungHyun' => 'jaeung@example.com' }
   s.source           = { :path => '.' }
   s.source_files = 'Classes/**/*'
+  s.resource_bundles = {
+    'flutter_pose_detection' => ['Assets/**/*']
+  }
   s.dependency 'Flutter'
+  s.dependency 'TensorFlowLiteSwift/CoreML', '~> 2.14.0'
+  s.dependency 'TensorFlowLiteSwift/Metal', '~> 2.14.0'
   s.platform = :ios, '14.0'
-  s.frameworks = 'Vision', 'CoreML', 'AVFoundation'
+  s.frameworks = 'Vision', 'CoreML', 'AVFoundation', 'Metal'
+  s.static_framework = true
 
   # Flutter.framework does not contain a i386 slice.
   s.pod_target_xcconfig = {

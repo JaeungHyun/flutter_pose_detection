@@ -1,64 +1,76 @@
 import Foundation
-import Vision
 
-/// Maps Vision Framework 19 landmarks to MediaPipe 33 landmarks.
+/// Maps MoveNet 17 landmarks to MediaPipe 33 landmarks.
 ///
-/// Vision provides 19 body pose landmarks, but we need to output 33 landmarks
-/// for MediaPipe/ML Kit compatibility. Missing landmarks are set to visibility 0.
+/// MoveNet provides 17 COCO keypoints, but we output 33 landmarks for
+/// MediaPipe/ML Kit compatibility. Missing landmarks are set to visibility 0.
 class LandmarkMapper {
 
-    /// Vision joint name to MediaPipe index mapping.
-    private let visionToMediaPipe: [VNHumanBodyPoseObservation.JointName: Int] = [
-        .nose: 0,
-        .leftEye: 2,
-        .rightEye: 5,
-        .leftEar: 7,
-        .rightEar: 8,
-        .leftShoulder: 11,
-        .rightShoulder: 12,
-        .leftElbow: 13,
-        .rightElbow: 14,
-        .leftWrist: 15,
-        .rightWrist: 16,
-        .leftHip: 23,
-        .rightHip: 24,
-        .leftKnee: 25,
-        .rightKnee: 26,
-        .leftAnkle: 27,
-        .rightAnkle: 28,
+    /// MoveNet index to MediaPipe index mapping.
+    ///
+    /// MoveNet keypoints (COCO format):
+    /// 0: nose, 1: left_eye, 2: right_eye, 3: left_ear, 4: right_ear,
+    /// 5: left_shoulder, 6: right_shoulder, 7: left_elbow, 8: right_elbow,
+    /// 9: left_wrist, 10: right_wrist, 11: left_hip, 12: right_hip,
+    /// 13: left_knee, 14: right_knee, 15: left_ankle, 16: right_ankle
+    private let moveNetToMediaPipe: [Int: Int] = [
+        0: 0,   // nose -> nose
+        1: 2,   // left_eye -> leftEye
+        2: 5,   // right_eye -> rightEye
+        3: 7,   // left_ear -> leftEar
+        4: 8,   // right_ear -> rightEar
+        5: 11,  // left_shoulder -> leftShoulder
+        6: 12,  // right_shoulder -> rightShoulder
+        7: 13,  // left_elbow -> leftElbow
+        8: 14,  // right_elbow -> rightElbow
+        9: 15,  // left_wrist -> leftWrist
+        10: 16, // right_wrist -> rightWrist
+        11: 23, // left_hip -> leftHip
+        12: 24, // right_hip -> rightHip
+        13: 25, // left_knee -> leftKnee
+        14: 26, // right_knee -> rightKnee
+        15: 27, // left_ankle -> leftAnkle
+        16: 28  // right_ankle -> rightAnkle
     ]
 
-    /// Map a Vision body pose observation to our 33-landmark format.
+    /// Map MoveNet keypoints to 33-landmark MediaPipe format.
     ///
-    /// - Parameter observation: The Vision framework observation
-    /// - Returns: A Pose with 33 landmarks
-    func mapVisionToPose(_ observation: VNHumanBodyPoseObservation) -> Pose {
+    /// - Parameters:
+    ///   - keypoints: Array of 17 keypoints, each [y, x, confidence]
+    ///   - minConfidence: Minimum confidence threshold
+    /// - Returns: Array of 33 PoseLandmarks
+    func mapMoveNetToPose(
+        _ keypoints: [[Float]],
+        minConfidence: Float
+    ) -> [PoseLandmark] {
         var landmarks = (0..<LandmarkType.count).map { index in
             PoseLandmark.notDetected(type: LandmarkType(rawValue: index)!)
         }
 
-        // Map direct landmarks from Vision
-        for (jointName, mediaPipeIndex) in visionToMediaPipe {
-            if let point = try? observation.recognizedPoint(jointName),
-               point.confidence > 0 {
+        // Map MoveNet keypoints to MediaPipe indices
+        for (moveNetIndex, point) in keypoints.enumerated() {
+            guard let mediaPipeIndex = moveNetToMediaPipe[moveNetIndex] else { continue }
+
+            // MoveNet output format: [y, x, confidence]
+            let y = Double(point[0])
+            let x = Double(point[1])
+            let confidence = Double(point[2])
+
+            if confidence >= Double(minConfidence) {
                 landmarks[mediaPipeIndex] = PoseLandmark(
                     type: LandmarkType(rawValue: mediaPipeIndex)!,
-                    x: Double(point.location.x),
-                    y: Double(1.0 - point.location.y),  // Vision uses bottom-left origin, flip Y
-                    z: 0.0,  // Vision doesn't provide depth
-                    visibility: Double(point.confidence)
+                    x: x,
+                    y: y,
+                    z: 0.0,
+                    visibility: confidence
                 )
             }
         }
 
-        // Interpolate heel positions from ankle + knee
+        // Interpolate derived landmarks
         interpolateHeels(&landmarks)
 
-        return Pose(
-            landmarks: landmarks,
-            score: Double(observation.confidence),
-            boundingBox: nil  // Vision doesn't provide bounding box for body pose
-        )
+        return landmarks
     }
 
     /// Interpolate heel positions based on ankle and knee positions.

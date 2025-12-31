@@ -6,12 +6,12 @@ import CoreVideo
 
 /// Flutter plugin for NPU-accelerated pose detection on iOS.
 ///
-/// Uses Apple Vision Framework with automatic Neural Engine acceleration.
+/// Uses LiteRT with CoreML/Metal delegates for Neural Engine/GPU acceleration.
 public class NpuPoseDetectionPlugin: NSObject, FlutterPlugin {
 
     // MARK: - Properties
 
-    private var poseDetector: VisionPoseDetector?
+    private var poseDetector: LiteRtPoseDetector?
     private var config: DetectorConfig = DetectorConfig()
     private var frameEventSink: FlutterEventSink?
     private var videoProgressEventSink: FlutterEventSink?
@@ -22,9 +22,9 @@ public class NpuPoseDetectionPlugin: NSObject, FlutterPlugin {
 
     // MARK: - Channel Names
 
-    private static let methodChannelName = "com.example.npu_pose_detection/methods"
-    private static let eventChannelName = "com.example.npu_pose_detection/frames"
-    private static let videoProgressChannelName = "com.example.npu_pose_detection/video_progress"
+    private static let methodChannelName = "com.example.flutter_pose_detection/methods"
+    private static let eventChannelName = "com.example.flutter_pose_detection/frames"
+    private static let videoProgressChannelName = "com.example.flutter_pose_detection/video_progress"
 
     // MARK: - Plugin Registration
 
@@ -92,19 +92,19 @@ public class NpuPoseDetectionPlugin: NSObject, FlutterPlugin {
         }
 
         config = DetectorConfig.from(dictionary: configDict)
-        poseDetector = VisionPoseDetector(config: config)
+        poseDetector = LiteRtPoseDetector(config: config)
 
         do {
             let mode = try poseDetector?.initialize()
             result([
                 "success": true,
                 "accelerationMode": mode?.rawValue ?? "npu",
-                "modelVersion": "vision_body_pose_v1"
+                "modelVersion": "movenet_lightning_v4"
             ])
         } catch {
             result(errorResponse(
                 code: "modelLoadFailed",
-                message: "Failed to initialize Vision detector",
+                message: "Failed to initialize LiteRT detector",
                 platformMessage: error.localizedDescription
             ))
         }

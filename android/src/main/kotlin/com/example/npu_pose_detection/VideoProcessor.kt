@@ -13,7 +13,7 @@ import java.io.File
  */
 class VideoProcessor(
     private val context: Context,
-    private val detector: TFLitePoseDetector
+    private val detector: LiteRtPoseDetector
 ) {
     companion object {
         private const val TAG = "VideoProcessor"

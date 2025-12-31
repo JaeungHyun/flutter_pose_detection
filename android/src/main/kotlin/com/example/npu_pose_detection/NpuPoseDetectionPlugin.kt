@@ -15,21 +15,21 @@ import java.util.Base64
 /**
  * Flutter plugin for NPU-accelerated pose detection on Android.
  *
- * Uses TensorFlow Lite with GPU delegate and NNAPI fallback.
+ * Uses LiteRT CompiledModel API with NPU/GPU/CPU fallback chain.
  */
 class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamHandler {
 
     companion object {
-        private const val METHOD_CHANNEL = "com.example.npu_pose_detection/methods"
-        private const val EVENT_CHANNEL = "com.example.npu_pose_detection/frames"
-        private const val VIDEO_PROGRESS_CHANNEL = "com.example.npu_pose_detection/video_progress"
+        private const val METHOD_CHANNEL = "com.example.flutter_pose_detection/methods"
+        private const val EVENT_CHANNEL = "com.example.flutter_pose_detection/frames"
+        private const val VIDEO_PROGRESS_CHANNEL = "com.example.flutter_pose_detection/video_progress"
     }
 
     private lateinit var channel: MethodChannel
     private lateinit var eventChannel: EventChannel
     private lateinit var videoProgressChannel: EventChannel
     private lateinit var context: Context
-    private var poseDetector: TFLitePoseDetector? = null
+    private var poseDetector: LiteRtPoseDetector? = null
     private var config: DetectorConfig = DetectorConfig()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -98,7 +98,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
 
         scope.launch {
             try {
-                poseDetector = TFLitePoseDetector(context)
+                poseDetector = LiteRtPoseDetector(context)
                 val mode = withContext(Dispatchers.IO) {
                     poseDetector?.initialize(config)
                 }
@@ -111,7 +111,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
             } catch (e: Exception) {
                 result.success(errorResponse(
                     "modelLoadFailed",
-                    "Failed to initialize TFLite detector",
+                    "Failed to initialize LiteRT detector",
                     e.message
                 ))
             }

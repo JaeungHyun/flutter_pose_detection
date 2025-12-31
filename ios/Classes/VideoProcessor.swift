@@ -1,16 +1,15 @@
 import Foundation
 import AVFoundation
-import Vision
 
 /// Video processor for frame-by-frame pose analysis.
 class VideoProcessor {
 
-    private var poseDetector: VisionPoseDetector?
+    private var poseDetector: LiteRtPoseDetector?
     private var isCancelled = false
     private var progressHandler: ((VideoAnalysisProgress) -> Void)?
     private let processingQueue = DispatchQueue(label: "com.example.npu_pose_detection.video", qos: .userInitiated)
 
-    init(detector: VisionPoseDetector) {
+    init(detector: LiteRtPoseDetector) {
         self.poseDetector = detector
     }
 
@@ -101,7 +100,12 @@ class VideoProcessor {
                 let timestamp = CMTimeGetSeconds(CMSampleBufferGetPresentationTimeStamp(sampleBuffer))
 
                 do {
-                    let poseResult = try poseDetector?.processFrame(sampleBuffer)
+                    // Extract CVPixelBuffer from sample buffer
+                    guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                        throw VideoProcessorError.readerFailed("Failed to get pixel buffer")
+                    }
+
+                    let poseResult = try poseDetector?.processFrame(pixelBuffer: pixelBuffer)
 
                     if let result = poseResult {
                         let frameResult = VideoFrameResult(

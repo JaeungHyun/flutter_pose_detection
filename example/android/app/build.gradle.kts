@@ -22,11 +22,23 @@ android {
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.npu_pose_detection_example"
-        // NPU Pose Detection requires Android 8.0+ (API 26)
-        minSdk = 26
+        // NPU acceleration requires Android 12+ (API 31)
+        minSdk = 31
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // NPU only supports arm64-v8a
+        ndk {
+            abiFilters.add("arm64-v8a")
+        }
+    }
+
+    // Required for NPU runtime libraries
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
     }
 
     buildTypes {

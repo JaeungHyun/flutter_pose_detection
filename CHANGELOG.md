@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2025-12-31
+
+### Fixed
+- **Android**: Updated QNN SDK from 2.34.0 to 2.41.0
+  - Fixes `NoSuchMethodError: getBackendType()I` crash on Snapdragon 8 Elite
+  - Resolves native JNI method signature mismatch with newer Android firmware
+
+### Added
+- **Android**: `ChipsetDetector` for runtime SoC detection (Snapdragon, Exynos, Tensor, MediaTek)
+- **iOS**: `CoreMLPoseDetector` for native Core ML inference with ANE optimization
+  - Direct MLModel API usage (no Vision framework overhead)
+  - ImageNet normalization for HRNet models
+
+## [0.2.0] - 2024-12-31
+
+### Changed
+- **BREAKING**: Migrated from TensorFlow Lite to LiteRT 2.1.0 (Google's successor to TFLite)
+- **Android**: New `LiteRtPoseDetector` using CompiledModel API with NPU/GPU/CPU fallback
+  - Replaces `TFLitePoseDetector` and `DelegateFactory`
+  - Uses `Accelerator.NPU`, `Accelerator.GPU` for hardware acceleration
+  - Automatic fallback chain: NPU → GPU → CPU
+- **iOS**: New `LiteRtPoseDetector` using TensorFlowLiteSwift 2.14.0
+  - Replaces `VisionPoseDetector` with MoveNet-based detection
+  - CoreML delegate for Neural Engine (A12+), Metal delegate for GPU
+  - Automatic fallback chain: Neural Engine → Metal → CPU
+- **Both Platforms**: Now use same MoveNet Lightning/Thunder models for consistent results
+  - Cross-platform landmark positions match within 5% variance
+  - Lightning (192x192) for fast mode, Thunder (256x256) for accurate mode
+
+### Removed
+- `TFLitePoseDetector.kt` - replaced by `LiteRtPoseDetector.kt`
+- `DelegateFactory.kt` - accelerator selection now handled by CompiledModel API
+- `VisionPoseDetector.swift` - replaced by `LiteRtPoseDetector.swift`
+
+### Fixed
+- Consistent 17-landmark COCO format output across platforms
+- Proper resource cleanup on dispose()
+
 ## [0.1.0] - 2024-12-30
 
 ### Added

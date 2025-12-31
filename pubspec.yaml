@@ -1,6 +1,6 @@
 name: flutter_pose_detection
-description: "Hardware-accelerated pose detection using native ML frameworks (Apple Vision on iOS, TensorFlow Lite on Android). Detects 33 body landmarks in MediaPipe-compatible format."
-version: 0.1.0
+description: "Hardware-accelerated pose detection using LiteRT (successor to TensorFlow Lite) with NPU/GPU/CPU acceleration. Detects 33 body landmarks in MediaPipe-compatible format."
+version: 0.2.1
 homepage: https://github.com/JaeungHyun/flutter_pose_detection
 repository: https://github.com/JaeungHyun/flutter_pose_detection
 issue_tracker: https://github.com/JaeungHyun/flutter_pose_detection/issues
