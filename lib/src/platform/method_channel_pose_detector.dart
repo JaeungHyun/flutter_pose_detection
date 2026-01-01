@@ -326,7 +326,8 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
     _methodChannel.invokeMethod('startCameraDetection');
 
     // Listen to event channel
-    _frameEventSubscription = _frameEventChannel.receiveBroadcastStream().listen(
+    _frameEventSubscription =
+        _frameEventChannel.receiveBroadcastStream().listen(
       (dynamic event) {
         if (event is Map) {
           final type = event['type'] as String?;
@@ -419,7 +420,8 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
     _videoProgressController?.close();
     _videoProgressSubscription?.cancel();
 
-    _videoProgressController = StreamController<VideoAnalysisProgress>.broadcast();
+    _videoProgressController =
+        StreamController<VideoAnalysisProgress>.broadcast();
 
     _videoProgressSubscription =
         _videoProgressEventChannel.receiveBroadcastStream().listen(
@@ -428,7 +430,8 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
           final type = event['type'] as String?;
           switch (type) {
             case 'progress':
-              final progress = VideoAnalysisProgress.fromJson(_convertMap(event));
+              final progress =
+                  VideoAnalysisProgress.fromJson(_convertMap(event));
               _videoProgressController?.add(progress);
               break;
             case 'error':

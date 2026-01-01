@@ -38,8 +38,9 @@ class VideoAnalysisResult {
   });
 
   /// Average FPS achieved during analysis
-  double get analysisSpeed =>
-      totalAnalysisTimeMs > 0 ? analyzedFrames / (totalAnalysisTimeMs / 1000) : 0;
+  double get analysisSpeed => totalAnalysisTimeMs > 0
+      ? analyzedFrames / (totalAnalysisTimeMs / 1000)
+      : 0;
 
   /// Percentage of frames with pose detected
   double get detectionRate {
@@ -137,8 +138,7 @@ class VideoAnalysisProgress {
   });
 
   /// Progress as percentage (0.0 to 1.0)
-  double get progress =>
-      totalFrames > 0 ? currentFrame / totalFrames : 0;
+  double get progress => totalFrames > 0 ? currentFrame / totalFrames : 0;
 
   /// Create from JSON map
   factory VideoAnalysisProgress.fromJson(Map<String, dynamic> json) {

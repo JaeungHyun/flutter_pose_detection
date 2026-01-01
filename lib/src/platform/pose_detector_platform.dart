@@ -13,10 +13,12 @@ import 'method_channel_pose_detector.dart';
 /// Platform channel identifiers.
 class PoseDetectorChannels {
   /// Method channel for request-response operations.
-  static const String methodChannel = 'com.example.flutter_pose_detection/methods';
+  static const String methodChannel =
+      'com.example.flutter_pose_detection/methods';
 
   /// Event channel for realtime camera frame streaming.
-  static const String eventChannel = 'com.example.flutter_pose_detection/frames';
+  static const String eventChannel =
+      'com.example.flutter_pose_detection/frames';
 
   /// Event channel for video analysis progress.
   static const String videoProgressChannel =
