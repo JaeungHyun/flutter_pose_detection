@@ -22,7 +22,20 @@ android/src/main/assets/movenet_thunder.tflite
 android/src/main/assets/movenet_thunder_int8.tflite
 android/src/main/assets/posenet_mobilenet.tflite
 
-# iOS - keep only Core ML model
+# iOS - exclude legacy models (if added)
 ios/Assets/hrnetpose_w8a8.tflite
-ios/Assets/movenet_lightning.tflite
-ios/Assets/movenet_thunder.tflite
+ios/Assets/movenet_*.tflite
+
+# QNN NPU libraries (too large for pub.dev, must be added manually)
+# See README.md for manual installation instructions
+android/src/main/assets/qnn_skel/
+android/src/main/jniLibs/arm64-v8a/libQnnHtp*.so
+android/src/main/jniLibs/arm64-v8a/libQnnCpu.so
+android/src/main/jniLibs/arm64-v8a/libQnnSystem.so
+android/src/main/jniLibs/arm64-v8a/libQnnTFLiteDelegate.so
+android/src/main/jniLibs/arm64-v8a/libqnn_delegate_jni.so
+android/extracted_aar/
+android/libs/qtld-release.aar
+
+# Internal specs
+specs/

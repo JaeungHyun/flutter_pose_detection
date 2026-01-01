@@ -158,7 +158,93 @@ print('Running on: ${mode.name}'); // "gpu", "npu", or "cpu"
 **NPU Requirements (Android only):**
 - Snapdragon chipset with Hexagon DSP (Snapdragon 8 series recommended)
 - Android API 31+
-- QNN libraries are bundled with the plugin
+- QNN libraries must be added manually (see below)
+
+### NPU Setup (Manual)
+
+Due to pub.dev size limits (~100MB), QNN libraries are not included. To enable NPU acceleration:
+
+#### Required Files
+
+| File | Source (QAIRT SDK) | Destination (Your App) | Size |
+|------|-------------------|------------------------|------|
+| libQnnHtp.so | lib/aarch64-android/ | android/app/src/main/jniLibs/arm64-v8a/ | 2 MB |
+| libQnnHtpPrepare.so | lib/aarch64-android/ | android/app/src/main/jniLibs/arm64-v8a/ | 53 MB |
+| libQnnHtpV79Stub.so | lib/aarch64-android/ | android/app/src/main/jniLibs/arm64-v8a/ | 682 KB |
+| libQnnHtpNetRunExtensions.so | lib/aarch64-android/ | android/app/src/main/jniLibs/arm64-v8a/ | 719 KB |
+| libQnnSystem.so | lib/aarch64-android/ | android/app/src/main/jniLibs/arm64-v8a/ | 2 MB |
+| libQnnCpu.so | lib/aarch64-android/ | android/app/src/main/jniLibs/arm64-v8a/ | 5 MB |
+| libQnnTFLiteDelegate.so | lib/aarch64-android/ | android/app/src/main/jniLibs/arm64-v8a/ | 990 KB |
+| libqnn_delegate_jni.so | lib/aarch64-android/ | android/app/src/main/jniLibs/arm64-v8a/ | 272 KB |
+| libQnnHtpV79Skel.so | lib/hexagon-v79/unsigned/ | android/app/src/main/assets/qnn_skel/ | 8 MB |
+| qnn-delegate.jar | Extract from qtld-release.aar | android/app/libs/ | 24 KB |
+
+**Total: ~72 MB**
+
+#### Installation Steps
+
+1. **Download QAIRT SDK** from [Qualcomm AI Engine Direct SDK](https://qpm.qualcomm.com/#/main/tools/details/Qualcomm_AI_Engine_Direct)
+   - Requires Qualcomm Developer account (free)
+   - Download version 2.35.0 or later
+   - Extract to a known location (e.g., `~/qairt/2.35.0`)
+
+2. **Copy files using script**:
+
+```bash
+# Set your QAIRT SDK path
+export QAIRT_SDK=~/qairt/2.35.0
+
+# Create directories
+mkdir -p android/app/src/main/jniLibs/arm64-v8a
+mkdir -p android/app/src/main/assets/qnn_skel
+mkdir -p android/app/libs
+
+# Copy JNI libraries
+cp $QAIRT_SDK/lib/aarch64-android/libQnnHtp.so android/app/src/main/jniLibs/arm64-v8a/
+cp $QAIRT_SDK/lib/aarch64-android/libQnnHtpPrepare.so android/app/src/main/jniLibs/arm64-v8a/
+cp $QAIRT_SDK/lib/aarch64-android/libQnnHtpV79Stub.so android/app/src/main/jniLibs/arm64-v8a/
+cp $QAIRT_SDK/lib/aarch64-android/libQnnHtpNetRunExtensions.so android/app/src/main/jniLibs/arm64-v8a/
+cp $QAIRT_SDK/lib/aarch64-android/libQnnSystem.so android/app/src/main/jniLibs/arm64-v8a/
+cp $QAIRT_SDK/lib/aarch64-android/libQnnCpu.so android/app/src/main/jniLibs/arm64-v8a/
+cp $QAIRT_SDK/lib/aarch64-android/libQnnTFLiteDelegate.so android/app/src/main/jniLibs/arm64-v8a/
+cp $QAIRT_SDK/lib/aarch64-android/libqnn_delegate_jni.so android/app/src/main/jniLibs/arm64-v8a/
+
+# Copy skel library (for Hexagon DSP)
+cp $QAIRT_SDK/lib/hexagon-v79/unsigned/libQnnHtpV79Skel.so android/app/src/main/assets/qnn_skel/
+
+# Extract and copy QNN delegate JAR
+unzip -o $QAIRT_SDK/lib/aarch64-android/qtld-release.aar -d /tmp/qtld_extracted
+cp /tmp/qtld_extracted/classes.jar android/app/libs/qnn-delegate.jar
+```
+
+3. **Update android/app/build.gradle**:
+
+```gradle
+android {
+    sourceSets {
+        main {
+            jniLibs.srcDirs = ['src/main/jniLibs']
+        }
+    }
+}
+
+dependencies {
+    implementation(files("libs/qnn-delegate.jar"))
+}
+```
+
+#### Supported Chipsets
+
+| Chipset | Skel Library | HTP Version |
+|---------|-------------|-------------|
+| Snapdragon 8 Elite | libQnnHtpV79Skel.so | V79 |
+| Snapdragon 8 Gen 3 | libQnnHtpV75Skel.so | V75 |
+| Snapdragon 8 Gen 2 | libQnnHtpV73Skel.so | V73 |
+| Snapdragon 8 Gen 1 | libQnnHtpV69Skel.so | V69 |
+
+> Copy additional skel files if you need to support older chipsets.
+
+Without these files, `preferredAcceleration: AccelerationMode.npu` will fall back to CPU
 
 ## Camera Stream Processing
 
