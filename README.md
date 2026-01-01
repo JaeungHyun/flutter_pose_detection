@@ -19,16 +19,14 @@ Hardware-accelerated pose detection Flutter plugin using MediaPipe PoseLandmarke
 
 | Device | Chipset | Acceleration | Inference Time |
 |--------|---------|--------------|----------------|
-| Galaxy S24 Ultra | Snapdragon 8 Elite | GPU | ~15ms |
-| iPhone 15 Pro | A17 Pro | ANE (CoreML) | ~12ms |
-| Pixel 8 | Tensor G3 | GPU | ~18ms |
+| Galaxy S25 Ultra | Snapdragon 8 Elite | GPU | <25ms |
 
 ## Platform Support
 
 | Platform | ML Framework | Model | Acceleration |
 |----------|-------------|-------|--------------|
-| iOS 14+ | TFLite + CoreML | MediaPipe Pose | Neural Engine → GPU → CPU |
-| Android API 24+ | MediaPipe Tasks | PoseLandmarker Lite | GPU → CPU |
+| iOS 14+ | TFLite 2.14 + CoreML/Metal | pose_detector + pose_landmarks_detector | Neural Engine → GPU → CPU |
+| Android API 31+ | MediaPipe Tasks 0.10.14 | pose_landmarker_lite.task | GPU → CPU |
 
 ## Installation
 
@@ -56,7 +54,7 @@ Update `android/app/build.gradle`:
 ```gradle
 android {
     defaultConfig {
-        minSdkVersion 24
+        minSdkVersion 31
     }
 }
 ```
@@ -236,12 +234,18 @@ if (result.hasPoses) {
 
 ## Model Architecture
 
-This plugin uses **MediaPipe PoseLandmarker** (2-stage pipeline):
+### iOS (TFLite 2-stage pipeline)
 
 | Stage | Model | Input Size | Output |
 |-------|-------|------------|--------|
-| 1. Person Detection | pose_detector | 224x224 | Bounding box |
-| 2. Landmark Detection | pose_landmarks_detector | 256x256 | 33 landmarks (x, y, z, visibility) |
+| 1. Person Detection | pose_detector.tflite | 224x224 | Bounding box |
+| 2. Landmark Detection | pose_landmarks_detector.tflite | 256x256 | 33 landmarks (x, y, z, visibility) |
+
+### Android (MediaPipe Tasks)
+
+| Model | Input Size | Output |
+|-------|------------|--------|
+| pose_landmarker_lite.task | 256x256 | 33 landmarks (x, y, z, visibility, presence) |
 
 ## API Reference
 
