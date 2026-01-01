@@ -12,6 +12,8 @@ Hardware-accelerated pose detection Flutter plugin using MediaPipe PoseLandmarke
 - **Cross-Platform**: iOS (CoreML/Metal) and Android (GPU Delegate)
 - **Hardware Acceleration**: Automatic GPU fallback to CPU
 - **Real-time**: Camera frame processing with FPS tracking
+- **Video Analysis**: Process video files with progress tracking
+- **Angle Calculation**: Built-in utilities for body angle measurements
 
 ## Performance
 
@@ -71,22 +73,22 @@ import 'package:flutter_pose_detection/flutter_pose_detection.dart';
 
 // Create and initialize detector
 final detector = NpuPoseDetector();
-final result = await detector.initialize();
-print('Running on: ${result.accelerationMode}'); // GPU or CPU
+final accelerationMode = await detector.initialize();
+print('Running on: $accelerationMode'); // gpu, npu, or cpu
 
 // Detect pose from image
 final imageBytes = await File('image.jpg').readAsBytes();
-final poseResult = await detector.detectPose(imageBytes);
+final result = await detector.detectPose(imageBytes);
 
-print('Inference time: ${poseResult.processingTimeMs}ms');
+print('Inference time: ${result.processingTimeMs}ms');
 
-if (poseResult.hasPoses) {
-  final pose = poseResult.firstPose!;
+if (result.hasPoses) {
+  final pose = result.firstPose!;
   print('Detected ${pose.landmarks.length} landmarks');
 
   // Access specific landmarks (MediaPipe 33-point format)
-  final nose = pose.getLandmark(MediaPipeLandmarkType.nose);
-  final leftShoulder = pose.getLandmark(MediaPipeLandmarkType.leftShoulder);
+  final nose = pose.getLandmark(LandmarkType.nose);
+  final leftShoulder = pose.getLandmark(LandmarkType.leftShoulder);
   print('Nose at (${nose.x}, ${nose.y})');
 }
 
@@ -94,23 +96,143 @@ if (poseResult.hasPoses) {
 detector.dispose();
 ```
 
+## Configuration
+
+```dart
+// Default configuration
+final detector = NpuPoseDetector();
+
+// Realtime camera optimization (fast mode, low latency)
+final detector = NpuPoseDetector(
+  config: PoseDetectorConfig.realtime(),
+);
+
+// Accuracy optimization (for still images)
+final detector = NpuPoseDetector(
+  config: PoseDetectorConfig.accurate(),
+);
+
+// Custom configuration
+final detector = NpuPoseDetector(
+  config: PoseDetectorConfig(
+    mode: DetectionMode.accurate,
+    maxPoses: 3,
+    minConfidence: 0.6,
+    enableZEstimation: true,
+  ),
+);
+```
+
+## Camera Stream Processing
+
+```dart
+// Process camera frames manually
+cameraController.startImageStream((CameraImage image) async {
+  final planes = image.planes.map((p) => {
+    'bytes': p.bytes,
+    'bytesPerRow': p.bytesPerRow,
+    'bytesPerPixel': p.bytesPerPixel,
+  }).toList();
+
+  final result = await detector.processFrame(
+    planes: planes,
+    width: image.width,
+    height: image.height,
+    format: 'yuv420',
+    rotation: 90,
+  );
+
+  if (result.hasPoses) {
+    // Draw skeleton overlay
+  }
+});
+
+// Or use built-in camera detection stream
+final subscription = detector.startCameraDetection().listen(
+  (frameResult) {
+    print('FPS: ${frameResult.fps.toStringAsFixed(1)}');
+    if (frameResult.result.hasPoses) {
+      // Process pose
+    }
+  },
+);
+
+// Stop when done
+await detector.stopCameraDetection();
+```
+
+## Video Analysis
+
+```dart
+// Subscribe to progress updates
+detector.videoAnalysisProgress.listen((progress) {
+  print('${(progress.progress * 100).toStringAsFixed(1)}% complete');
+});
+
+// Analyze video file
+final result = await detector.analyzeVideo(
+  '/path/to/video.mp4',
+  frameInterval: 3, // Analyze every 3rd frame
+);
+
+print('Analyzed ${result.analyzedFrames} frames');
+print('Detection rate: ${(result.detectionRate * 100).toStringAsFixed(0)}%');
+
+// Access individual frame results
+for (final frame in result.frames) {
+  if (frame.result.hasPoses) {
+    print('Pose at ${frame.timestampSeconds}s');
+  }
+}
+```
+
+## Body Angle Calculation
+
+```dart
+if (result.hasPoses) {
+  final pose = result.firstPose!;
+
+  // Calculate knee angle
+  final kneeAngle = pose.calculateAngle(
+    LandmarkType.leftHip,
+    LandmarkType.leftKnee,
+    LandmarkType.leftAnkle,
+  );
+
+  if (kneeAngle != null) {
+    print('Knee angle: ${kneeAngle.toStringAsFixed(1)}°');
+  }
+
+  // Calculate shoulder width
+  final shoulderWidth = pose.calculateDistance(
+    LandmarkType.leftShoulder,
+    LandmarkType.rightShoulder,
+  );
+
+  // Get visible landmarks only
+  final visibleLandmarks = pose.getVisibleLandmarks(threshold: 0.5);
+  print('${visibleLandmarks.length} landmarks visible');
+}
+```
+
 ## MediaPipe 33 Landmarks
 
-```
-0: nose
-1-6: eyes (inner, center, outer)
-7-8: ears
-9-10: mouth corners
-11-12: shoulders
-13-14: elbows
-15-16: wrists
-17-22: hands (pinky, index, thumb)
-23-24: hips
-25-26: knees
-27-28: ankles
-29-30: heels
-31-32: foot index
-```
+| Index | Name | Description |
+|-------|------|-------------|
+| 0 | nose | Nose tip |
+| 1-3 | leftEyeInner, leftEye, leftEyeOuter | Left eye |
+| 4-6 | rightEyeInner, rightEye, rightEyeOuter | Right eye |
+| 7-8 | leftEar, rightEar | Ears |
+| 9-10 | mouthLeft, mouthRight | Mouth corners |
+| 11-12 | leftShoulder, rightShoulder | Shoulders |
+| 13-14 | leftElbow, rightElbow | Elbows |
+| 15-16 | leftWrist, rightWrist | Wrists |
+| 17-22 | pinky, index, thumb (L/R) | Hand landmarks |
+| 23-24 | leftHip, rightHip | Hips |
+| 25-26 | leftKnee, rightKnee | Knees |
+| 27-28 | leftAnkle, rightAnkle | Ankles |
+| 29-30 | leftHeel, rightHeel | Heels |
+| 31-32 | leftFootIndex, rightFootIndex | Foot tips |
 
 ## Model Architecture
 
@@ -120,6 +242,32 @@ This plugin uses **MediaPipe PoseLandmarker** (2-stage pipeline):
 |-------|-------|------------|--------|
 | 1. Person Detection | pose_detector | 224x224 | Bounding box |
 | 2. Landmark Detection | pose_landmarks_detector | 256x256 | 33 landmarks (x, y, z, visibility) |
+
+## API Reference
+
+### NpuPoseDetector
+
+| Method | Description |
+|--------|-------------|
+| `initialize()` | Load ML model, returns `AccelerationMode` |
+| `detectPose(Uint8List)` | Detect pose from image bytes |
+| `detectPoseFromFile(String)` | Detect pose from file path |
+| `processFrame(...)` | Process single camera frame |
+| `startCameraDetection()` | Start camera stream detection |
+| `stopCameraDetection()` | Stop camera detection |
+| `analyzeVideo(String)` | Analyze video file |
+| `cancelVideoAnalysis()` | Cancel ongoing video analysis |
+| `updateConfig(PoseDetectorConfig)` | Update configuration |
+| `dispose()` | Release resources |
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `isInitialized` | `bool` | Whether detector is ready |
+| `accelerationMode` | `AccelerationMode` | Current hardware acceleration |
+| `config` | `PoseDetectorConfig` | Current configuration |
+| `videoAnalysisProgress` | `Stream<VideoAnalysisProgress>` | Video analysis progress |
 
 ## Documentation
 

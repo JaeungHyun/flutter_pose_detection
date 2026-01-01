@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-01-02
+
+### Changed
+- Updated README with comprehensive API documentation
+- Added Configuration, Camera Stream, Video Analysis, and Angle Calculation sections
+- Fixed Quick Start code examples (MediaPipeLandmarkType → LandmarkType)
+- Added API Reference table with all methods and properties
+- Improved MediaPipe 33 Landmarks documentation with structured table
+
+### Fixed
+- Corrected library documentation (Vision Framework → MediaPipe PoseLandmarker)
+- Fixed Pose class comment (17 landmarks → 33 landmarks)
+
 ## [0.3.0] - 2026-01-01
 
 ### Changed

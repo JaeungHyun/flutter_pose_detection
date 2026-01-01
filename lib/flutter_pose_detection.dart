@@ -1,8 +1,8 @@
-/// Hardware-accelerated pose detection using native ML frameworks.
+/// Hardware-accelerated pose detection using MediaPipe PoseLandmarker.
 ///
 /// This library provides pose detection capabilities using:
-/// - iOS: Apple Vision Framework with Neural Engine acceleration
-/// - Android: TensorFlow Lite with GPU/NNAPI/CPU delegates
+/// - iOS: TFLite + CoreML delegate (Neural Engine → GPU → CPU fallback)
+/// - Android: MediaPipe Tasks Vision with GPU delegate
 ///
 /// ## Quick Start
 ///
@@ -11,7 +11,8 @@
 ///
 /// // Create and initialize detector
 /// final detector = NpuPoseDetector();
-/// await detector.initialize();
+/// final mode = await detector.initialize();
+/// print('Running on: $mode'); // gpu, npu, or cpu
 ///
 /// // Detect pose from image
 /// final result = await detector.detectPose(imageBytes);
@@ -27,17 +28,19 @@
 ///
 /// ## Features
 ///
-/// - **33 landmarks** in MediaPipe-compatible format
-/// - **Hardware acceleration** (NPU/GPU) when available
+/// - **33 landmarks** in MediaPipe BlazePose format
+/// - **Hardware acceleration** (Neural Engine/GPU) with automatic fallback
 /// - **Image detection** for static images
-/// - **Camera stream** for realtime detection
-/// - **Video analysis** for recorded files
+/// - **Camera stream** for realtime detection with FPS tracking
+/// - **Video analysis** for recorded files with progress updates
+/// - **Angle calculation** for body pose analysis
 ///
 /// See also:
 /// - [NpuPoseDetector] - Main detector class
 /// - [Pose] - Detected pose with landmarks
 /// - [PoseLandmark] - Individual body landmark
-/// - [LandmarkType] - 33 landmark types
+/// - [LandmarkType] - 33 landmark types (MediaPipe BlazePose)
+/// - [PoseDetectorConfig] - Configuration options
 library;
 
 // Models

@@ -35,9 +35,9 @@ import 'pose_landmark.dart';
 /// );
 /// ```
 class Pose {
-  /// All 17 landmarks in COCO order.
+  /// All 33 landmarks in MediaPipe BlazePose order.
   ///
-  /// The list always contains exactly 17 landmarks.
+  /// The list always contains exactly 33 landmarks.
   /// Undetected landmarks will have [PoseLandmark.visibility] = 0.0.
   final List<PoseLandmark> landmarks;
 
