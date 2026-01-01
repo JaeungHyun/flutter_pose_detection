@@ -1,7 +1,7 @@
-/// Enumeration of all 33 body landmarks in MediaPipe order.
+/// Enumeration of all 33 body landmarks in MediaPipe BlazePose format.
 ///
-/// This enum follows the MediaPipe/ML Kit pose landmark topology,
-/// providing compatibility with other pose detection solutions.
+/// This enum follows the MediaPipe 33-keypoint topology used by BlazePose,
+/// providing comprehensive body tracking including hands and feet.
 ///
 /// ## Landmark Indices
 ///
@@ -36,8 +36,8 @@
 /// | 26 | rightKnee | Right knee |
 /// | 27 | leftAnkle | Left ankle |
 /// | 28 | rightAnkle | Right ankle |
-/// | 29 | leftHeel | Left heel (interpolated) |
-/// | 30 | rightHeel | Right heel (interpolated) |
+/// | 29 | leftHeel | Left heel |
+/// | 30 | rightHeel | Right heel |
 /// | 31 | leftFootIndex | Left foot index toe |
 /// | 32 | rightFootIndex | Right foot index toe |
 enum LandmarkType {
@@ -128,10 +128,10 @@ enum LandmarkType {
   /// Right ankle (index 28)
   rightAnkle(28),
 
-  /// Left heel (index 29) - interpolated from ankle/knee
+  /// Left heel (index 29)
   leftHeel(29),
 
-  /// Right heel (index 30) - interpolated from ankle/knee
+  /// Right heel (index 30)
   rightHeel(30),
 
   /// Left foot index toe (index 31)

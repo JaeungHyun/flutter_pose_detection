@@ -13,7 +13,7 @@ import java.io.File
  */
 class VideoProcessor(
     private val context: Context,
-    private val detector: LiteRtPoseDetector
+    private val detector: PoseDetectorInterface
 ) {
     companion object {
         private const val TAG = "VideoProcessor"
@@ -55,13 +55,28 @@ class VideoProcessor(
 
             val durationSeconds = durationMs / 1000.0
 
-            val width = retriever.extractMetadata(
+            // Get raw video dimensions (before rotation)
+            val rawWidth = retriever.extractMetadata(
                 MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH
             )?.toIntOrNull() ?: 0
 
-            val height = retriever.extractMetadata(
+            val rawHeight = retriever.extractMetadata(
                 MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT
             )?.toIntOrNull() ?: 0
+
+            // Get rotation metadata - critical for portrait videos!
+            val rotation = retriever.extractMetadata(
+                MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION
+            )?.toIntOrNull() ?: 0
+
+            // Calculate logical dimensions (as displayed to user)
+            val (width, height) = if (rotation == 90 || rotation == 270) {
+                rawHeight to rawWidth  // Swap dimensions for portrait videos
+            } else {
+                rawWidth to rawHeight
+            }
+
+            Log.i(TAG, "Video: raw=${rawWidth}x${rawHeight}, rotation=$rotation, logical=${width}x${height}")
 
             val frameRateString = retriever.extractMetadata(
                 MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE
@@ -96,12 +111,17 @@ class VideoProcessor(
 
                 try {
                     // Extract frame at timestamp
-                    val bitmap = retriever.getFrameAtTime(
+                    var bitmap = retriever.getFrameAtTime(
                         timestampUs,
                         MediaMetadataRetriever.OPTION_CLOSEST
                     )
 
                     if (bitmap != null) {
+                        // Apply rotation if needed - getFrameAtTime() returns unrotated frames
+                        if (rotation != 0) {
+                            bitmap = rotateBitmap(bitmap, rotation)
+                        }
+
                         // Process the frame
                         val poseResult = detector.detectPose(bitmapToByteArray(bitmap))
                         bitmap.recycle()
@@ -150,13 +170,27 @@ class VideoProcessor(
                 analyzedFrames = analyzedCount,
                 durationSeconds = durationSeconds,
                 frameRate = frameRate,
-                width = width,
-                height = height,
+                width = width,  // Logical width (after rotation)
+                height = height,  // Logical height (after rotation)
                 totalAnalysisTimeMs = totalTime
             )
         } finally {
             retriever.release()
         }
+    }
+
+    /**
+     * Rotate bitmap by specified degrees.
+     * MediaMetadataRetriever.getFrameAtTime() returns frames without rotation applied.
+     */
+    private fun rotateBitmap(bitmap: Bitmap, rotation: Int): Bitmap {
+        if (rotation == 0) return bitmap
+
+        val matrix = android.graphics.Matrix()
+        matrix.postRotate(rotation.toFloat())
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        bitmap.recycle()
+        return rotated
     }
 
     /**

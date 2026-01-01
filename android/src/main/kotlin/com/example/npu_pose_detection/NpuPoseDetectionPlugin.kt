@@ -2,6 +2,7 @@ package com.example.npu_pose_detection
 
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -15,11 +16,12 @@ import java.util.Base64
 /**
  * Flutter plugin for NPU-accelerated pose detection on Android.
  *
- * Uses LiteRT CompiledModel API with NPU/GPU/CPU fallback chain.
+ * Uses MediaPipe PoseLandmarker for 33-landmark detection with GPU acceleration.
  */
 class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.StreamHandler {
 
     companion object {
+        private const val TAG = "NpuPoseDetectionPlugin"
         private const val METHOD_CHANNEL = "com.example.flutter_pose_detection/methods"
         private const val EVENT_CHANNEL = "com.example.flutter_pose_detection/frames"
         private const val VIDEO_PROGRESS_CHANNEL = "com.example.flutter_pose_detection/video_progress"
@@ -29,7 +31,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     private lateinit var eventChannel: EventChannel
     private lateinit var videoProgressChannel: EventChannel
     private lateinit var context: Context
-    private var poseDetector: LiteRtPoseDetector? = null
+    private var mediaPipeDetector: MediaPipeNpuDetector? = null
     private var config: DetectorConfig = DetectorConfig()
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -98,20 +100,28 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
 
         scope.launch {
             try {
-                poseDetector = LiteRtPoseDetector(context)
+                Log.i(TAG, "Initializing MediaPipe PoseLandmarker...")
+                mediaPipeDetector = MediaPipeNpuDetector(context)
                 val mode = withContext(Dispatchers.IO) {
-                    poseDetector?.initialize(config)
+                    mediaPipeDetector?.initialize(config)
                 }
 
+                if (mediaPipeDetector?.isInitialized != true) {
+                    throw IllegalStateException("MediaPipe PoseLandmarker not initialized")
+                }
+
+                Log.i(TAG, "✓ MediaPipe initialized successfully, mode=$mode")
                 result.success(mapOf(
                     "success" to true,
-                    "accelerationMode" to (mode?.name?.lowercase() ?: "unknown"),
-                    "modelVersion" to "movenet_lightning_v4"
+                    "accelerationMode" to (mode?.name?.lowercase() ?: "gpu"),
+                    "modelVersion" to "mediapipe_pose_landmarker",
+                    "numLandmarks" to 33
                 ))
             } catch (e: Exception) {
+                Log.e(TAG, "MediaPipe initialization failed: ${e.message}", e)
                 result.success(errorResponse(
                     "modelLoadFailed",
-                    "Failed to initialize LiteRT detector",
+                    "Failed to initialize MediaPipe pose detector",
                     e.message
                 ))
             }
@@ -121,8 +131,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     // MARK: - Detect Pose
 
     private fun handleDetectPose(call: MethodCall, result: Result) {
-        val detector = poseDetector
-        if (detector == null) {
+        if (!isDetectorReady()) {
             result.success(errorResponse("notInitialized", "Detector not initialized"))
             return
         }
@@ -139,12 +148,12 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
             try {
                 val imageData = Base64.getDecoder().decode(imageDataBase64)
                 val poseResult = withContext(Dispatchers.IO) {
-                    detector.detectPose(imageData)
+                    mediaPipeDetector?.detectPose(imageData)
                 }
 
                 result.success(mapOf(
                     "success" to true,
-                    "result" to poseResult.toMap()
+                    "result" to poseResult?.toMap()
                 ))
             } catch (e: Exception) {
                 result.success(errorResponse(
@@ -159,8 +168,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     // MARK: - Detect Pose From File
 
     private fun handleDetectPoseFromFile(call: MethodCall, result: Result) {
-        val detector = poseDetector
-        if (detector == null) {
+        if (!isDetectorReady()) {
             result.success(errorResponse("notInitialized", "Detector not initialized"))
             return
         }
@@ -176,12 +184,12 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         scope.launch {
             try {
                 val poseResult = withContext(Dispatchers.IO) {
-                    detector.detectPoseFromFile(filePath)
+                    mediaPipeDetector?.detectPoseFromFile(filePath)
                 }
 
                 result.success(mapOf(
                     "success" to true,
-                    "result" to poseResult.toMap()
+                    "result" to poseResult?.toMap()
                 ))
             } catch (e: Exception) {
                 result.success(errorResponse(
@@ -191,6 +199,10 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
                 ))
             }
         }
+    }
+
+    private fun isDetectorReady(): Boolean {
+        return mediaPipeDetector?.isInitialized == true
     }
 
     // MARK: - Update Config
@@ -205,7 +217,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         }
 
         config = DetectorConfig.fromMap(configMap)
-        poseDetector?.updateConfig(config)
+        mediaPipeDetector?.updateConfig(config)
 
         result.success(mapOf(
             "success" to true,
@@ -239,8 +251,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     // MARK: - Process Frame
 
     private fun handleProcessFrame(call: MethodCall, result: Result) {
-        val detector = poseDetector
-        if (detector == null) {
+        if (!isDetectorReady()) {
             result.success(errorResponse("notInitialized", "Detector not initialized"))
             return
         }
@@ -276,12 +287,12 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         scope.launch {
             try {
                 val poseResult = withContext(Dispatchers.IO) {
-                    detector.processFrame(decodedPlanes, width, height, format, rotation)
+                    mediaPipeDetector?.processFrame(decodedPlanes, width, height, format, rotation)
                 }
 
                 result.success(mapOf(
                     "success" to true,
-                    "result" to poseResult.toMap()
+                    "result" to poseResult?.toMap()
                 ))
             } catch (e: Exception) {
                 result.success(errorResponse(
@@ -296,7 +307,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     // MARK: - Camera Detection
 
     private fun handleStartCameraDetection(result: Result) {
-        if (poseDetector == null) {
+        if (!isDetectorReady()) {
             result.success(errorResponse("notInitialized", "Detector not initialized"))
             return
         }
@@ -323,8 +334,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     // MARK: - Video Analysis
 
     private fun handleAnalyzeVideo(call: MethodCall, result: Result) {
-        val detector = poseDetector
-        if (detector == null) {
+        if (!isDetectorReady()) {
             result.success(errorResponse("notInitialized", "Detector not initialized"))
             return
         }
@@ -337,6 +347,8 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
             result.success(errorResponse("invalidArguments", "Missing video path"))
             return
         }
+
+        val detector = mediaPipeDetector!! as PoseDetectorInterface
 
         videoProcessor = VideoProcessor(context, detector)
 
@@ -387,8 +399,8 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         isStreamingActive = false
         videoProcessor?.cancel()
         videoProcessor = null
-        poseDetector?.dispose()
-        poseDetector = null
+        mediaPipeDetector?.dispose()
+        mediaPipeDetector = null
         result.success(mapOf("success" to true))
     }
 
@@ -421,8 +433,8 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         eventChannel.setStreamHandler(null)
         videoProgressChannel.setStreamHandler(null)
         scope.cancel()
-        poseDetector?.dispose()
-        poseDetector = null
+        mediaPipeDetector?.dispose()
+        mediaPipeDetector = null
     }
 }
 

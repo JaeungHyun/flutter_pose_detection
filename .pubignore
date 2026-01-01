@@ -1,0 +1,28 @@
+# Build artifacts
+build/
+.dart_tool/
+*.iml
+
+# Ignore bundled runtime libraries (fetched from Maven instead)
+android/qualcomm_runtime_v69/
+android/qualcomm_runtime_v73/
+android/qualcomm_runtime_v75/
+android/qualcomm_runtime_v79/
+android/qualcomm_runtime_v81/
+android/google_tensor_runtime/
+android/mediatek_runtime/
+android/runtime_strings/
+android/fetch_qualcomm_library.sh
+
+# Ignore duplicate/fallback model files (keep only HRNetPose)
+android/src/main/assets/hrnetpose_w8a8.dlc
+android/src/main/assets/movenet_lightning.tflite
+android/src/main/assets/movenet_lightning_int8.tflite
+android/src/main/assets/movenet_thunder.tflite
+android/src/main/assets/movenet_thunder_int8.tflite
+android/src/main/assets/posenet_mobilenet.tflite
+
+# iOS - keep only Core ML model
+ios/Assets/hrnetpose_w8a8.tflite
+ios/Assets/movenet_lightning.tflite
+ios/Assets/movenet_thunder.tflite

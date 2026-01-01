@@ -6,13 +6,18 @@ import CoreVideo
 
 /// Flutter plugin for NPU-accelerated pose detection on iOS.
 ///
-/// Uses LiteRT with CoreML/Metal delegates for Neural Engine/GPU acceleration.
+/// Uses MediaPipe with CoreML/Metal delegates for Neural Engine/GPU acceleration.
 public class NpuPoseDetectionPlugin: NSObject, FlutterPlugin {
 
     // MARK: - Properties
 
-    private var poseDetector: LiteRtPoseDetector?
+    private var mediaPipeDetector: MediaPipePoseDetector?
     private var config: DetectorConfig = DetectorConfig()
+
+    /// Returns the active pose detector.
+    private var poseDetector: PoseDetectorProtocol? {
+        return mediaPipeDetector
+    }
     private var frameEventSink: FlutterEventSink?
     private var videoProgressEventSink: FlutterEventSink?
     private var isStreamingActive = false
@@ -92,21 +97,31 @@ public class NpuPoseDetectionPlugin: NSObject, FlutterPlugin {
         }
 
         config = DetectorConfig.from(dictionary: configDict)
-        poseDetector = LiteRtPoseDetector(config: config)
 
-        do {
-            let mode = try poseDetector?.initialize()
-            result([
-                "success": true,
-                "accelerationMode": mode?.rawValue ?? "npu",
-                "modelVersion": "movenet_lightning_v4"
-            ])
-        } catch {
-            result(errorResponse(
-                code: "modelLoadFailed",
-                message: "Failed to initialize LiteRT detector",
-                platformMessage: error.localizedDescription
-            ))
+        // Run initialization on background thread to avoid blocking UI
+        DispatchQueue.global(qos: .userInitiated).async { [self] in
+            let mediaPipe = MediaPipePoseDetector(config: config)
+            do {
+                let mode = try mediaPipe.initialize()
+                self.mediaPipeDetector = mediaPipe
+                DispatchQueue.main.async {
+                    result([
+                        "success": true,
+                        "accelerationMode": mode.rawValue,
+                        "modelVersion": "mediapipe_pose_landmarker",
+                        "numLandmarks": 33
+                    ])
+                }
+            } catch {
+                print("[NpuPoseDetectionPlugin] MediaPipe initialization failed: \(error)")
+                DispatchQueue.main.async {
+                    result(self.errorResponse(
+                        code: "modelLoadFailed",
+                        message: "Failed to initialize MediaPipe pose detector",
+                        platformMessage: error.localizedDescription
+                    ))
+                }
+            }
         }
     }
 
@@ -439,8 +454,8 @@ public class NpuPoseDetectionPlugin: NSObject, FlutterPlugin {
         isStreamingActive = false
         videoProcessor?.cancel()
         videoProcessor = nil
-        poseDetector?.dispose()
-        poseDetector = nil
+        mediaPipeDetector?.dispose()
+        mediaPipeDetector = nil
         result(["success": true])
     }
 

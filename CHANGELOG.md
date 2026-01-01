@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-01-01
+
+### Changed
+- **BREAKING**: Migrated from LiteRT/MoveNet to MediaPipe PoseLandmarker API
+- **Android**: Uses official MediaPipe Tasks Vision library with GPU delegate
+  - `pose_landmarker_lite.task` model for 33-landmark detection
+  - Automatic GPU → CPU fallback
+- **iOS**: Uses TFLite with CoreML/Metal delegates for ANE/GPU acceleration
+  - `pose_detector.tflite` + `pose_landmarks_detector.tflite` 2-stage pipeline
+  - Automatic ANE → GPU → CPU fallback
+
+### Removed
+- LiteRT/MoveNet fallback code (simplified architecture)
+- `LiteRtPoseDetector.swift` - MediaPipe only
+- `movenet_lightning.tflite`, `movenet_thunder.tflite` - replaced by MediaPipe models
+- `hrnetpose_w8a8.tflite`, `HRNetPose.mlpackage` - no longer needed
+
+### Fixed
+- iOS main thread blocking during initialization (moved to background thread)
+- iOS coordinate normalization (pixel space 0-256 → normalized 0-1)
+- Android model loading with ByteBuffer instead of file path
+
+## [0.2.2] - 2025-12-31
+
+### Fixed
+- **Critical**: Fixed pose coordinate mismatch with video aspect ratio
+  - Added letterboxing (padding) during image preprocessing to maintain original aspect ratio
+  - Previously, images were stretched to 192x256 input size, causing coordinate distortion
+  - Coordinates now correctly map back to original image dimensions
+- **Android**: Implemented `letterboxBitmap()` and `transformKeypointsFromLetterbox()` in `LiteRtPoseDetector.kt`
+- **iOS**: Implemented `letterboxAndExtractRGB()` and `transformKeypointsFromLetterbox()` in `CoreMLPoseDetector.swift`
+
 ## [0.2.1] - 2025-12-31
 
 ### Fixed

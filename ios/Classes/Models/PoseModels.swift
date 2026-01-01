@@ -1,7 +1,70 @@
 import Foundation
+import CoreVideo
 
-/// Landmark type following MediaPipe 33-landmark topology.
+/// Error types for pose detection.
+enum DetectorError: Error, LocalizedError {
+    case notInitialized
+    case modelLoadFailed(String)
+    case inferenceFailed(String)
+    case invalidImageFormat
+    case fileNotFound
+
+    var errorDescription: String? {
+        switch self {
+        case .notInitialized:
+            return "Detector not initialized"
+        case .modelLoadFailed(let message):
+            return "Model load failed: \(message)"
+        case .inferenceFailed(let message):
+            return "Inference failed: \(message)"
+        case .invalidImageFormat:
+            return "Invalid image format"
+        case .fileNotFound:
+            return "File not found"
+        }
+    }
+}
+
+/// Protocol for pose detectors.
+protocol PoseDetectorProtocol: AnyObject {
+    var isInitialized: Bool { get }
+    var accelerationMode: AccelerationMode { get }
+
+    func detectPose(imageData: Data) throws -> PoseResult
+    func detectPose(filePath: String) throws -> PoseResult
+    func processFrame(pixelBuffer: CVPixelBuffer) throws -> PoseResult
+    func updateConfig(_ config: DetectorConfig)
+    func dispose()
+}
+
+/// Landmark type following COCO 17-keypoint topology.
+/// Same as MoveNet/HRNet output format.
+///
+/// @deprecated Use MediaPipeLandmarkType for 33-landmark format
 enum LandmarkType: Int, CaseIterable {
+    case nose = 0
+    case leftEye = 1
+    case rightEye = 2
+    case leftEar = 3
+    case rightEar = 4
+    case leftShoulder = 5
+    case rightShoulder = 6
+    case leftElbow = 7
+    case rightElbow = 8
+    case leftWrist = 9
+    case rightWrist = 10
+    case leftHip = 11
+    case rightHip = 12
+    case leftKnee = 13
+    case rightKnee = 14
+    case leftAnkle = 15
+    case rightAnkle = 16
+
+    static let count = 17
+}
+
+/// MediaPipe 33-landmark type.
+enum MediaPipeLandmarkType: Int, CaseIterable {
     case nose = 0
     case leftEyeInner = 1
     case leftEye = 2
@@ -39,9 +102,9 @@ enum LandmarkType: Int, CaseIterable {
     static let count = 33
 }
 
-/// Individual body landmark.
+/// Individual body landmark supporting both COCO (17) and MediaPipe (33) formats.
 struct PoseLandmark {
-    let type: LandmarkType
+    let typeIndex: Int
     let x: Double
     let y: Double
     let z: Double
@@ -49,13 +112,48 @@ struct PoseLandmark {
 
     var isDetected: Bool { visibility > 0 }
 
+    // Legacy constructor for COCO LandmarkType
+    init(type: LandmarkType, x: Double, y: Double, z: Double, visibility: Double) {
+        self.typeIndex = type.rawValue
+        self.x = x
+        self.y = y
+        self.z = z
+        self.visibility = visibility
+    }
+
+    // Constructor for MediaPipe 33-landmark type
+    init(type: MediaPipeLandmarkType, x: Double, y: Double, z: Double, visibility: Double) {
+        self.typeIndex = type.rawValue
+        self.x = x
+        self.y = y
+        self.z = z
+        self.visibility = visibility
+    }
+
+    // Generic constructor with typeIndex
+    init(typeIndex: Int, x: Double, y: Double, z: Double, visibility: Double) {
+        self.typeIndex = typeIndex
+        self.x = x
+        self.y = y
+        self.z = z
+        self.visibility = visibility
+    }
+
     static func notDetected(type: LandmarkType) -> PoseLandmark {
         return PoseLandmark(type: type, x: 0, y: 0, z: 0, visibility: 0)
     }
 
+    static func notDetected(type: MediaPipeLandmarkType) -> PoseLandmark {
+        return PoseLandmark(type: type, x: 0, y: 0, z: 0, visibility: 0)
+    }
+
+    static func notDetected(typeIndex: Int) -> PoseLandmark {
+        return PoseLandmark(typeIndex: typeIndex, x: 0, y: 0, z: 0, visibility: 0)
+    }
+
     func toDictionary() -> [String: Any] {
         return [
-            "type": type.rawValue,
+            "type": typeIndex,
             "x": x,
             "y": y,
             "z": z,

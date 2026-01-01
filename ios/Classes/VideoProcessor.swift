@@ -4,12 +4,12 @@ import AVFoundation
 /// Video processor for frame-by-frame pose analysis.
 class VideoProcessor {
 
-    private var poseDetector: LiteRtPoseDetector?
+    private var poseDetector: PoseDetectorProtocol?
     private var isCancelled = false
     private var progressHandler: ((VideoAnalysisProgress) -> Void)?
     private let processingQueue = DispatchQueue(label: "com.example.npu_pose_detection.video", qos: .userInitiated)
 
-    init(detector: LiteRtPoseDetector) {
+    init(detector: PoseDetectorProtocol) {
         self.poseDetector = detector
     }
 

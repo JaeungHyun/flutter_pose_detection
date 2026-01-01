@@ -276,9 +276,6 @@ class CoreMLPoseDetector {
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
 
-        let width = Self.INPUT_WIDTH
-        let height = Self.INPUT_HEIGHT
-
         // Create CGImage from pixel buffer
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         let context = CIContext()
@@ -386,36 +383,25 @@ class CoreMLPoseDetector {
 
     // MARK: - Keypoint Mapping (same as TFLite version)
 
-    private let moveNetToMediaPipe: [Int: Int] = [
-        0: 0, 1: 2, 2: 5, 3: 7, 4: 8, 5: 11, 6: 12,
-        7: 13, 8: 14, 9: 15, 10: 16, 11: 23, 12: 24,
-        13: 25, 14: 26, 15: 27, 16: 28
-    ]
-
+    /// Map keypoints to COCO 17 format (direct 1:1 mapping).
     private func mapKeypoints(_ keypoints: [[Float]]) -> [PoseLandmark] {
-        var landmarks = (0..<LandmarkType.count).map { index in
-            PoseLandmark.notDetected(type: LandmarkType(rawValue: index)!)
-        }
-
-        for (moveNetIndex, point) in keypoints.enumerated() {
-            guard let mediaPipeIndex = moveNetToMediaPipe[moveNetIndex] else { continue }
-
+        return keypoints.enumerated().map { index, point in
             let y = Double(point[0])
             let x = Double(point[1])
             let confidence = Double(point[2])
 
             if confidence >= Double(config.minConfidence) {
-                landmarks[mediaPipeIndex] = PoseLandmark(
-                    type: LandmarkType(rawValue: mediaPipeIndex)!,
+                return PoseLandmark(
+                    type: LandmarkType(rawValue: index)!,
                     x: x,
                     y: y,
                     z: 0.0,
                     visibility: confidence
                 )
+            } else {
+                return PoseLandmark.notDetected(type: LandmarkType(rawValue: index)!)
             }
         }
-
-        return landmarks
     }
 
     private func calculateBoundingBox(_ landmarks: [PoseLandmark]) -> BoundingBox? {

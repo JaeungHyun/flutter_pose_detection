@@ -1,45 +1,34 @@
 package com.example.npu_pose_detection.models
 
+import com.example.npu_pose_detection.MediaPipeLandmarkType
+
 /**
- * Landmark type following MediaPipe 33-landmark topology.
+ * Landmark type following COCO 17-keypoint topology.
+ * Same as MoveNet/HRNet output format.
+ *
+ * @deprecated Use MediaPipeLandmarkType for 33-landmark format
  */
 enum class LandmarkType(val index: Int) {
     NOSE(0),
-    LEFT_EYE_INNER(1),
-    LEFT_EYE(2),
-    LEFT_EYE_OUTER(3),
-    RIGHT_EYE_INNER(4),
-    RIGHT_EYE(5),
-    RIGHT_EYE_OUTER(6),
-    LEFT_EAR(7),
-    RIGHT_EAR(8),
-    MOUTH_LEFT(9),
-    MOUTH_RIGHT(10),
-    LEFT_SHOULDER(11),
-    RIGHT_SHOULDER(12),
-    LEFT_ELBOW(13),
-    RIGHT_ELBOW(14),
-    LEFT_WRIST(15),
-    RIGHT_WRIST(16),
-    LEFT_PINKY(17),
-    RIGHT_PINKY(18),
-    LEFT_INDEX(19),
-    RIGHT_INDEX(20),
-    LEFT_THUMB(21),
-    RIGHT_THUMB(22),
-    LEFT_HIP(23),
-    RIGHT_HIP(24),
-    LEFT_KNEE(25),
-    RIGHT_KNEE(26),
-    LEFT_ANKLE(27),
-    RIGHT_ANKLE(28),
-    LEFT_HEEL(29),
-    RIGHT_HEEL(30),
-    LEFT_FOOT_INDEX(31),
-    RIGHT_FOOT_INDEX(32);
+    LEFT_EYE(1),
+    RIGHT_EYE(2),
+    LEFT_EAR(3),
+    RIGHT_EAR(4),
+    LEFT_SHOULDER(5),
+    RIGHT_SHOULDER(6),
+    LEFT_ELBOW(7),
+    RIGHT_ELBOW(8),
+    LEFT_WRIST(9),
+    RIGHT_WRIST(10),
+    LEFT_HIP(11),
+    RIGHT_HIP(12),
+    LEFT_KNEE(13),
+    RIGHT_KNEE(14),
+    LEFT_ANKLE(15),
+    RIGHT_ANKLE(16);
 
     companion object {
-        const val COUNT = 33
+        const val COUNT = 17
 
         fun fromIndex(index: Int): LandmarkType {
             return values().firstOrNull { it.index == index }
@@ -49,10 +38,13 @@ enum class LandmarkType(val index: Int) {
 }
 
 /**
- * Individual body landmark.
+ * Individual body landmark supporting both COCO (17) and MediaPipe (33) formats.
+ *
+ * For MediaPipe 33-landmark format, use the constructor with MediaPipeLandmarkType.
+ * For COCO 17-landmark format, use the constructor with LandmarkType.
  */
 data class PoseLandmark(
-    val type: LandmarkType,
+    val typeIndex: Int,
     val x: Double,
     val y: Double,
     val z: Double = 0.0,
@@ -60,15 +52,37 @@ data class PoseLandmark(
 ) {
     val isDetected: Boolean get() = visibility > 0
 
+    // Legacy constructor for COCO LandmarkType
+    constructor(
+        type: LandmarkType,
+        x: Double,
+        y: Double,
+        z: Double = 0.0,
+        visibility: Double
+    ) : this(type.index, x, y, z, visibility)
+
+    // Constructor for MediaPipe 33-landmark type
+    constructor(
+        type: MediaPipeLandmarkType,
+        x: Double,
+        y: Double,
+        z: Double = 0.0,
+        visibility: Double
+    ) : this(type.index, x, y, z, visibility)
+
     companion object {
         fun notDetected(type: LandmarkType): PoseLandmark {
-            return PoseLandmark(type, 0.0, 0.0, 0.0, 0.0)
+            return PoseLandmark(type.index, 0.0, 0.0, 0.0, 0.0)
+        }
+
+        fun notDetected(type: MediaPipeLandmarkType): PoseLandmark {
+            return PoseLandmark(type.index, 0.0, 0.0, 0.0, 0.0)
         }
     }
 
     fun toMap(): Map<String, Any> {
         return mapOf(
-            "type" to type.index,
+            "type" to typeIndex,
             "x" to x,
             "y" to y,
             "z" to z,

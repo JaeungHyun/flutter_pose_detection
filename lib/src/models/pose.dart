@@ -7,7 +7,7 @@ import 'pose_landmark.dart';
 /// A single detected human pose with 33 landmarks.
 ///
 /// Each [Pose] contains a list of 33 [PoseLandmark]s following the
-/// MediaPipe topology, along with an overall confidence score.
+/// MediaPipe BlazePose 33-keypoint topology, along with an overall confidence score.
 ///
 /// ## Accessing Landmarks
 ///
@@ -35,9 +35,9 @@ import 'pose_landmark.dart';
 /// );
 /// ```
 class Pose {
-  /// All 33 landmarks in MediaPipe order.
+  /// All 17 landmarks in COCO order.
   ///
-  /// The list always contains exactly 33 landmarks.
+  /// The list always contains exactly 17 landmarks.
   /// Undetected landmarks will have [PoseLandmark.visibility] = 0.0.
   final List<PoseLandmark> landmarks;
 
@@ -50,11 +50,13 @@ class Pose {
   final BoundingBox? boundingBox;
 
   /// Creates a new [Pose].
+  ///
+  /// Note: landmarks list must have exactly [LandmarkType.count] elements.
   const Pose({
     required this.landmarks,
     required this.score,
     this.boundingBox,
-  }) : assert(landmarks.length == LandmarkType.count);
+  });
 
   /// Get a landmark by its type.
   ///
@@ -63,7 +65,7 @@ class Pose {
   /// ```
   PoseLandmark getLandmark(LandmarkType type) => landmarks[type.value];
 
-  /// Get a landmark by its index (0-32).
+  /// Get a landmark by its index (0-16).
   ///
   /// ```dart
   /// final nose = pose[0]; // Same as getLandmark(LandmarkType.nose)
@@ -160,6 +162,14 @@ class Pose {
     final landmarks = landmarkList
         .map((l) => PoseLandmark.fromJson(l as Map<String, dynamic>))
         .toList();
+
+    // Validate landmark count
+    if (landmarks.length != LandmarkType.count) {
+      throw ArgumentError(
+        'Invalid landmark count: expected ${LandmarkType.count}, got ${landmarks.length}. '
+        'This may indicate a detector mismatch (MoveNet returns 17, MediaPipe returns 33).',
+      );
+    }
 
     return Pose(
       landmarks: landmarks,
