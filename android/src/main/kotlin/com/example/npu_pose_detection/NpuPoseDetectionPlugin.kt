@@ -32,7 +32,10 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     private lateinit var videoProgressChannel: EventChannel
     private lateinit var context: Context
     private var mediaPipeDetector: MediaPipeNpuDetector? = null
+    private var tfliteDetector: TFLitePoseDetector? = null
+    private var activeDetector: PoseDetectorInterface? = null
     private var config: DetectorConfig = DetectorConfig()
+    private var useNpuBackend: Boolean = false
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -70,6 +73,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
             "cancelVideoAnalysis" -> handleCancelVideoAnalysis(result)
             "updateConfig" -> handleUpdateConfig(call, result)
             "getDeviceCapabilities" -> handleGetDeviceCapabilities(result)
+            "benchmarkDelegates" -> handleBenchmarkDelegates(call, result)
             "dispose" -> handleDispose(result)
             else -> result.notImplemented()
         }
@@ -97,31 +101,56 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         }
 
         config = DetectorConfig.fromMap(configMap)
+        useNpuBackend = config.preferredAcceleration == AccelerationMode.NPU
 
         scope.launch {
             try {
-                Log.i(TAG, "Initializing MediaPipe PoseLandmarker...")
-                mediaPipeDetector = MediaPipeNpuDetector(context)
-                val mode = withContext(Dispatchers.IO) {
-                    mediaPipeDetector?.initialize(config)
-                }
+                if (useNpuBackend) {
+                    // Use TFLite + QNN for NPU acceleration (better battery efficiency)
+                    Log.i(TAG, "Initializing TFLite with QNN delegate (NPU)...")
+                    tfliteDetector = TFLitePoseDetector(context)
+                    val mode = withContext(Dispatchers.IO) {
+                        tfliteDetector?.initialize(config)
+                    }
 
-                if (mediaPipeDetector?.isInitialized != true) {
-                    throw IllegalStateException("MediaPipe PoseLandmarker not initialized")
-                }
+                    if (tfliteDetector?.isInitialized != true) {
+                        throw IllegalStateException("TFLite detector not initialized")
+                    }
 
-                Log.i(TAG, "✓ MediaPipe initialized successfully, mode=$mode")
-                result.success(mapOf(
-                    "success" to true,
-                    "accelerationMode" to (mode?.name?.lowercase() ?: "gpu"),
-                    "modelVersion" to "mediapipe_pose_landmarker",
-                    "numLandmarks" to 33
-                ))
+                    activeDetector = tfliteDetector
+                    Log.i(TAG, "✓ TFLite NPU initialized successfully, mode=$mode")
+                    result.success(mapOf(
+                        "success" to true,
+                        "accelerationMode" to (mode?.name?.lowercase() ?: "npu"),
+                        "modelVersion" to "tflite_pose_landmarks",
+                        "numLandmarks" to 33
+                    ))
+                } else {
+                    // Use MediaPipe for GPU acceleration (faster but more power)
+                    Log.i(TAG, "Initializing MediaPipe PoseLandmarker...")
+                    mediaPipeDetector = MediaPipeNpuDetector(context)
+                    val mode = withContext(Dispatchers.IO) {
+                        mediaPipeDetector?.initialize(config)
+                    }
+
+                    if (mediaPipeDetector?.isInitialized != true) {
+                        throw IllegalStateException("MediaPipe PoseLandmarker not initialized")
+                    }
+
+                    activeDetector = mediaPipeDetector
+                    Log.i(TAG, "✓ MediaPipe initialized successfully, mode=$mode")
+                    result.success(mapOf(
+                        "success" to true,
+                        "accelerationMode" to (mode?.name?.lowercase() ?: "gpu"),
+                        "modelVersion" to "mediapipe_pose_landmarker",
+                        "numLandmarks" to 33
+                    ))
+                }
             } catch (e: Exception) {
-                Log.e(TAG, "MediaPipe initialization failed: ${e.message}", e)
+                Log.e(TAG, "Initialization failed: ${e.message}", e)
                 result.success(errorResponse(
                     "modelLoadFailed",
-                    "Failed to initialize MediaPipe pose detector",
+                    "Failed to initialize pose detector",
                     e.message
                 ))
             }
@@ -148,7 +177,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
             try {
                 val imageData = Base64.getDecoder().decode(imageDataBase64)
                 val poseResult = withContext(Dispatchers.IO) {
-                    mediaPipeDetector?.detectPose(imageData)
+                    activeDetector?.detectPose(imageData)
                 }
 
                 result.success(mapOf(
@@ -184,7 +213,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         scope.launch {
             try {
                 val poseResult = withContext(Dispatchers.IO) {
-                    mediaPipeDetector?.detectPoseFromFile(filePath)
+                    activeDetector?.detectPoseFromFile(filePath)
                 }
 
                 result.success(mapOf(
@@ -202,7 +231,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     }
 
     private fun isDetectorReady(): Boolean {
-        return mediaPipeDetector?.isInitialized == true
+        return activeDetector?.isInitialized == true
     }
 
     // MARK: - Update Config
@@ -393,14 +422,59 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         result.success(mapOf("success" to true))
     }
 
+    // MARK: - Benchmark Delegates
+
+    private fun handleBenchmarkDelegates(call: MethodCall, result: Result) {
+        val args = call.arguments as? Map<*, *>
+        val iterations = (args?.get("iterations") as? Int) ?: 10
+
+        Log.i(TAG, "Starting delegate benchmark (iterations=$iterations)...")
+
+        scope.launch {
+            try {
+                val tfliteDetector = TFLitePoseDetector(context)
+                val results = withContext(Dispatchers.IO) {
+                    tfliteDetector.benchmarkAll(iterations)
+                }
+                tfliteDetector.dispose()
+
+                val benchmarkResults = results.map { (delegate, benchResult) ->
+                    delegate to mapOf(
+                        "success" to benchResult.success,
+                        "avgInferenceTimeMs" to benchResult.avgInferenceTimeMs,
+                        "minInferenceTimeMs" to benchResult.minInferenceTimeMs,
+                        "maxInferenceTimeMs" to benchResult.maxInferenceTimeMs,
+                        "errorMessage" to benchResult.errorMessage
+                    )
+                }.toMap()
+
+                result.success(mapOf(
+                    "success" to true,
+                    "results" to benchmarkResults
+                ))
+            } catch (e: Exception) {
+                Log.e(TAG, "Benchmark failed: ${e.message}", e)
+                result.success(errorResponse(
+                    "benchmarkFailed",
+                    "Benchmark failed",
+                    e.message
+                ))
+            }
+        }
+    }
+
     // MARK: - Dispose
 
     private fun handleDispose(result: Result) {
         isStreamingActive = false
         videoProcessor?.cancel()
         videoProcessor = null
+        activeDetector = null
         mediaPipeDetector?.dispose()
         mediaPipeDetector = null
+        tfliteDetector?.dispose()
+        tfliteDetector = null
+        useNpuBackend = false
         result.success(mapOf("success" to true))
     }
 
@@ -433,8 +507,11 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         eventChannel.setStreamHandler(null)
         videoProgressChannel.setStreamHandler(null)
         scope.cancel()
+        activeDetector = null
         mediaPipeDetector?.dispose()
         mediaPipeDetector = null
+        tfliteDetector?.dispose()
+        tfliteDetector = null
     }
 }
 

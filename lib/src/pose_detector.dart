@@ -6,6 +6,7 @@ import 'models/detector_config.dart';
 import 'models/frame_result.dart';
 import 'models/pose_result.dart';
 import 'models/video_analysis_result.dart';
+import 'platform/method_channel_pose_detector.dart';
 import 'platform/pose_detector_platform.dart';
 
 /// Main pose detector class providing hardware-accelerated pose detection.
@@ -311,5 +312,38 @@ class NpuPoseDetector {
   /// ```
   void dispose() {
     _platform.dispose();
+  }
+
+  /// Benchmark different TFLite delegates (QNN, GPU, CPU).
+  ///
+  /// This is a diagnostic tool to measure inference performance across
+  /// different hardware acceleration modes. Useful for understanding
+  /// device capabilities and optimizing performance.
+  ///
+  /// [iterations] specifies how many inference runs to average.
+  ///
+  /// Returns a map containing:
+  /// - `success`: Whether the benchmark completed
+  /// - `results`: Map of delegate names to their benchmark results
+  ///   - Each result contains: `success`, `avgInferenceTimeMs`,
+  ///     `minInferenceTimeMs`, `maxInferenceTimeMs`, `errorMessage`
+  ///
+  /// ```dart
+  /// final result = await NpuPoseDetector.benchmarkDelegates(iterations: 10);
+  /// if (result['success'] == true) {
+  ///   final results = result['results'] as Map<String, dynamic>;
+  ///   for (final entry in results.entries) {
+  ///     print('${entry.key}: ${entry.value['avgInferenceTimeMs']}ms');
+  ///   }
+  /// }
+  /// ```
+  static Future<Map<String, dynamic>> benchmarkDelegates({
+    int iterations = 10,
+  }) async {
+    final platform = PoseDetectorPlatform.instance;
+    if (platform is MethodChannelPoseDetector) {
+      return platform.benchmarkDelegates(iterations: iterations);
+    }
+    return {'success': false, 'error': 'Benchmarking not supported'};
   }
 }

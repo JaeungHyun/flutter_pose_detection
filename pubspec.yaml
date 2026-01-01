@@ -1,6 +1,6 @@
 name: flutter_pose_detection
-description: "Hardware-accelerated pose detection using MediaPipe PoseLandmarker with GPU acceleration. Detects 33 body landmarks."
-version: 0.3.3
+description: "Hardware-accelerated pose detection using MediaPipe PoseLandmarker with GPU/NPU acceleration. Detects 33 body landmarks."
+version: 0.4.0
 homepage: https://github.com/JaeungHyun/flutter_pose_detection
 repository: https://github.com/JaeungHyun/flutter_pose_detection
 issue_tracker: https://github.com/JaeungHyun/flutter_pose_detection/issues

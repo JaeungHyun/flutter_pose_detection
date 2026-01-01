@@ -35,7 +35,10 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   String _accelerationMode = 'Not initialized';
   bool _isInitializing = false;
+  bool _isBenchmarking = false;
+  String _benchmarkResult = '';
   NpuPoseDetector? _detector;
+  bool _useNpu = false; // Toggle for NPU vs GPU
 
   @override
   void initState() {
@@ -49,7 +52,13 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      _detector = NpuPoseDetector();
+      _detector?.dispose();
+
+      final config = PoseDetectorConfig(
+        preferredAcceleration: _useNpu ? AccelerationMode.npu : null,
+      );
+
+      _detector = NpuPoseDetector(config: config);
       final mode = await _detector!.initialize();
 
       if (mounted) {
@@ -63,6 +72,69 @@ class _HomePageState extends State<HomePage> {
         setState(() {
           _accelerationMode = 'Error: $e';
           _isInitializing = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _toggleAccelerationMode() async {
+    setState(() {
+      _useNpu = !_useNpu;
+    });
+    await _initializeDetector();
+  }
+
+  Future<void> _runBenchmark() async {
+    setState(() {
+      _isBenchmarking = true;
+      _benchmarkResult = 'Running benchmark...';
+    });
+
+    try {
+      final result =
+          await NpuPoseDetector.benchmarkDelegates(iterations: 10);
+
+      if (result['success'] == true) {
+        final results = result['results'] as Map<String, dynamic>? ?? {};
+        final buffer = StringBuffer();
+        buffer.writeln('Benchmark Results:');
+
+        for (final entry in results.entries) {
+          final delegate = entry.key.toUpperCase();
+          final data = entry.value as Map<String, dynamic>? ?? {};
+          if (data['success'] == true) {
+            final avg = (data['avgInferenceTimeMs'] as num?)?.toStringAsFixed(2) ?? 'N/A';
+            final min = (data['minInferenceTimeMs'] as num?)?.toStringAsFixed(2) ?? 'N/A';
+            final max = (data['maxInferenceTimeMs'] as num?)?.toStringAsFixed(2) ?? 'N/A';
+            buffer.writeln('$delegate: ${avg}ms (min: ${min}ms, max: ${max}ms)');
+          } else {
+            final error = data['errorMessage'] ?? 'Unknown error';
+            buffer.writeln('$delegate: FAILED - $error');
+          }
+        }
+
+        if (mounted) {
+          setState(() {
+            _benchmarkResult = buffer.toString();
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            _benchmarkResult = 'Benchmark failed: ${result['error']}';
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _benchmarkResult = 'Error: $e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBenchmarking = false;
         });
       }
     }
@@ -121,10 +193,59 @@ class _HomePageState extends State<HomePage> {
                           ),
                       ],
                     ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Text('Use NPU (Battery Efficient): '),
+                        Switch(
+                          value: _useNpu,
+                          onChanged: _isInitializing
+                              ? null
+                              : (value) => _toggleAccelerationMode(),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      _useNpu
+                          ? 'NPU: ~13ms, lower power consumption'
+                          : 'GPU: ~3ms, higher power consumption',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _isBenchmarking ? null : _runBenchmark,
+              icon: _isBenchmarking
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.speed),
+              label: Text(_isBenchmarking ? 'Benchmarking...' : 'Run Delegate Benchmark'),
+            ),
+            if (_benchmarkResult.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Card(
+                color: Colors.grey[100],
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Text(
+                    _benchmarkResult,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             const Text(
               'Detection Modes',

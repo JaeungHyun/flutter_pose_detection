@@ -473,4 +473,42 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
       _videoProgressController = null;
     }
   }
+
+  /// Benchmark different TFLite delegates (QNN, GPU, CPU).
+  ///
+  /// Returns a map of delegate names to their benchmark results.
+  /// Each result contains: success, avgInferenceTimeMs, minInferenceTimeMs,
+  /// maxInferenceTimeMs, and errorMessage (if failed).
+  Future<Map<String, dynamic>> benchmarkDelegates({int iterations = 10}) async {
+    try {
+      final result = await _methodChannel.invokeMethod<Map<dynamic, dynamic>>(
+        'benchmarkDelegates',
+        {'iterations': iterations},
+      );
+
+      if (result == null) {
+        return {'success': false, 'error': 'No result returned'};
+      }
+
+      final success = result['success'] as bool? ?? false;
+      if (!success) {
+        final error = result['error'] as Map<dynamic, dynamic>?;
+        return {
+          'success': false,
+          'error': error != null ? _convertMap(error) : 'Unknown error',
+        };
+      }
+
+      final results = result['results'] as Map<dynamic, dynamic>?;
+      return {
+        'success': true,
+        'results': results != null ? _convertMap(results) : {},
+      };
+    } on PlatformException catch (e) {
+      return {
+        'success': false,
+        'error': e.message ?? 'Platform exception',
+      };
+    }
+  }
 }

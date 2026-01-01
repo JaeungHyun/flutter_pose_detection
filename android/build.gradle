@@ -77,10 +77,9 @@ android {
         // TensorFlow Lite GPU Delegate for non-Snapdragon devices (Exynos, MediaTek, Tensor)
         implementation("org.tensorflow:tensorflow-lite-gpu:2.14.0")
 
-        // Qualcomm QNN Delegate for NPU/HTP acceleration (Snapdragon only)
-        // https://developer.qualcomm.com/software/qualcomm-ai-engine-direct-sdk
-        implementation("com.qualcomm.qti:qnn-runtime:2.41.0")
-        implementation("com.qualcomm.qti:qnn-litert-delegate:2.41.0")
+        // Qualcomm QNN TFLite Delegate for NPU/HTP acceleration (Snapdragon only)
+        // From QAIRT SDK 2.35.0 - extracted classes.jar (native .so in jniLibs)
+        implementation(files("libs/qnn-delegate.jar"))
 
         // CameraX for frame processing
         implementation("androidx.camera:camera-core:1.3.0")

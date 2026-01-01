@@ -1,16 +1,53 @@
-# npu_pose_detection_example
+# Flutter Pose Detection Example
 
-Demonstrates how to use the npu_pose_detection plugin.
+Example app demonstrating the flutter_pose_detection plugin features.
 
-## Getting Started
+## Features
 
-This project is a starting point for a Flutter application.
+### Home Screen
+- **Acceleration Mode Toggle**: Switch between GPU (fast) and NPU (battery-efficient) modes
+- **Delegate Benchmark**: Run performance benchmarks to compare NPU, GPU, and CPU inference times
+- **Status Display**: Shows current acceleration mode in use
 
-A few resources to get you started if this is your first Flutter project:
+### Detection Modes
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+1. **Image Detection**: Detect poses in static images from gallery
+2. **Camera Detection**: Real-time pose detection from device camera
+3. **Video Analysis**: Analyze poses in video files with progress tracking
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## NPU vs GPU Mode
+
+| Mode | Inference Time | Power | Best For |
+|------|---------------|-------|----------|
+| GPU | ~3ms | High | Short sessions, max FPS |
+| NPU | ~13-16ms | Low | Long-running apps |
+| CPU | ~17ms | Medium | Fallback |
+
+## Usage
+
+```dart
+// GPU mode (default) - fastest
+final detector = NpuPoseDetector();
+
+// NPU mode - battery efficient (Snapdragon only)
+final detector = NpuPoseDetector(
+  config: PoseDetectorConfig(
+    preferredAcceleration: AccelerationMode.npu,
+  ),
+);
+
+final mode = await detector.initialize();
+print('Running on: ${mode.name}');
+```
+
+## Running the Example
+
+```bash
+cd example
+flutter run
+```
+
+## Requirements
+
+- **iOS**: iOS 14+
+- **Android**: API 31+ (NPU requires Snapdragon chipset)

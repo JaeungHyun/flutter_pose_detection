@@ -39,7 +39,8 @@ data class DetectorConfig(
     val maxPoses: Int = 1,
     val minConfidence: Float = 0.5f,
     val enableZEstimation: Boolean = true,
-    val preferredAcceleration: AccelerationMode? = null
+    val preferredAcceleration: AccelerationMode? = null,
+    val skelLibraryDir: String? = null
 ) {
     companion object {
         fun fromMap(map: Map<*, *>): DetectorConfig {
@@ -50,7 +51,8 @@ data class DetectorConfig(
                 enableZEstimation = map["enableZEstimation"] as? Boolean ?: true,
                 preferredAcceleration = (map["preferredAcceleration"] as? String)?.let {
                     AccelerationMode.fromString(it)
-                }
+                },
+                skelLibraryDir = map["skelLibraryDir"] as? String
             )
         }
     }
@@ -61,7 +63,8 @@ data class DetectorConfig(
             "maxPoses" to maxPoses,
             "minConfidence" to minConfidence,
             "enableZEstimation" to enableZEstimation,
-            "preferredAcceleration" to preferredAcceleration?.name?.lowercase()
+            "preferredAcceleration" to preferredAcceleration?.name?.lowercase(),
+            "skelLibraryDir" to skelLibraryDir
         )
     }
 }

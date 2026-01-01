@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-01-02
+
+### Added
+- **NPU Support (Android)**: Qualcomm QNN delegate for Snapdragon devices
+  - Battery-efficient inference on Hexagon DSP (HTP backend)
+  - ~13-16ms inference time with significantly lower power consumption
+  - Automatic skel library extraction from bundled assets
+  - Supports Snapdragon 8 series (V68-V79 HTP versions)
+- New `preferredAcceleration` config option for explicit backend selection
+  - `AccelerationMode.npu` - Force NPU (Snapdragon only)
+  - `AccelerationMode.gpu` - Force GPU (default behavior)
+  - `null` - Auto-select best available
+- Backend switching between MediaPipe (GPU) and TFLite+QNN (NPU)
+- Example app with NPU toggle switch and benchmark functionality
+
+### Changed
+- `NpuPoseDetector` now supports runtime backend selection
+- Updated README with NPU documentation and performance comparison table
+
 ## [0.3.3] - 2026-01-02
 
 ### Fixed

@@ -1,6 +1,6 @@
 # Flutter Pose Detection
 
-Hardware-accelerated pose detection Flutter plugin using MediaPipe PoseLandmarker with GPU acceleration.
+Hardware-accelerated pose detection Flutter plugin using MediaPipe PoseLandmarker with GPU/NPU acceleration.
 
 [![pub package](https://img.shields.io/pub/v/flutter_pose_detection.svg)](https://pub.dev/packages/flutter_pose_detection)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -9,17 +9,20 @@ Hardware-accelerated pose detection Flutter plugin using MediaPipe PoseLandmarke
 
 - **MediaPipe PoseLandmarker**: Official Google pose detection API
 - **33 Landmarks**: Full body tracking including hands and feet
-- **Cross-Platform**: iOS (CoreML/Metal) and Android (GPU Delegate)
+- **Cross-Platform**: iOS (CoreML/Metal) and Android (GPU/NPU Delegate)
+- **NPU Support**: Qualcomm QNN delegate for Snapdragon devices (battery-efficient)
 - **Hardware Acceleration**: Automatic GPU fallback to CPU
 - **Real-time**: Camera frame processing with FPS tracking
 - **Video Analysis**: Process video files with progress tracking
 - **Angle Calculation**: Built-in utilities for body angle measurements
 
-## Performance
+## Performance (Galaxy S25 Ultra)
 
-| Device | Chipset | Acceleration | Inference Time |
-|--------|---------|--------------|----------------|
-| Galaxy S25 Ultra | Snapdragon 8 Elite | GPU | <25ms |
+| Mode | Speed | Power Consumption | Use Case |
+|------|-------|-------------------|----------|
+| GPU (MediaPipe) | ~3ms | High | Short sessions, maximum performance |
+| NPU (QNN) | ~13-16ms | Low | Long-running apps, battery-critical |
+| CPU | ~17ms | Medium | Fallback |
 
 ## Platform Support
 
@@ -27,12 +30,13 @@ Hardware-accelerated pose detection Flutter plugin using MediaPipe PoseLandmarke
 |----------|-------------|-------|--------------|
 | iOS 14+ | TFLite 2.14 + CoreML/Metal | pose_detector + pose_landmarks_detector | Neural Engine → GPU → CPU |
 | Android API 31+ | MediaPipe Tasks 0.10.14 | pose_landmarker_lite.task | GPU → CPU |
+| Android API 31+ (Snapdragon) | TFLite + QNN Delegate | movenet_lightning.tflite | NPU (HTP) → CPU |
 
 ## Installation
 
 ```yaml
 dependencies:
-  flutter_pose_detection: ^0.3.0
+  flutter_pose_detection: ^0.4.0
 ```
 
 ### iOS Setup
@@ -119,7 +123,42 @@ final detector = NpuPoseDetector(
     enableZEstimation: true,
   ),
 );
+
+// NPU acceleration (Snapdragon devices only)
+// Use this for battery-efficient long-running detection
+final detector = NpuPoseDetector(
+  config: PoseDetectorConfig(
+    preferredAcceleration: AccelerationMode.npu,
+  ),
+);
 ```
+
+### NPU vs GPU Mode
+
+Choose the right acceleration mode for your use case:
+
+```dart
+// GPU mode (default) - Fastest inference, higher power consumption
+// Best for: Short sessions, real-time camera with high FPS requirements
+final gpuDetector = NpuPoseDetector();
+
+// NPU mode - Slower inference, significantly lower power consumption
+// Best for: Long-running apps (fitness trackers, running apps)
+final npuDetector = NpuPoseDetector(
+  config: PoseDetectorConfig(
+    preferredAcceleration: AccelerationMode.npu,
+  ),
+);
+
+// Check which acceleration is actually being used
+final mode = await detector.initialize();
+print('Running on: ${mode.name}'); // "gpu", "npu", or "cpu"
+```
+
+**NPU Requirements (Android only):**
+- Snapdragon chipset with Hexagon DSP (Snapdragon 8 series recommended)
+- Android API 31+
+- QNN libraries are bundled with the plugin
 
 ## Camera Stream Processing
 

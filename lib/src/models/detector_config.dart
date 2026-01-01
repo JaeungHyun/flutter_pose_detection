@@ -65,6 +65,28 @@ class PoseDetectorConfig {
   /// to the next best option.
   final AccelerationMode? preferredAcceleration;
 
+  /// Directory path for QNN Skel libraries (Android NPU only).
+  ///
+  /// Required for Qualcomm QNN delegate to find HTP skeleton libraries.
+  /// These libraries run on the Hexagon DSP and are required for NPU acceleration.
+  ///
+  /// If null, the detector will look for skel libraries in default system paths,
+  /// which may not be accessible in sandboxed apps.
+  ///
+  /// Example:
+  /// ```dart
+  /// final config = PoseDetectorConfig(
+  ///   preferredAcceleration: AccelerationMode.npu,
+  ///   skelLibraryDir: '/data/local/tmp/qnn',
+  /// );
+  /// ```
+  ///
+  /// Note: You need to push the skel libraries to this directory using adb:
+  /// ```bash
+  /// adb push libQnnHtpV79Skel.so /data/local/tmp/qnn/
+  /// ```
+  final String? skelLibraryDir;
+
   /// Creates a new [PoseDetectorConfig] with the given options.
   const PoseDetectorConfig({
     this.mode = DetectionMode.fast,
@@ -72,6 +94,7 @@ class PoseDetectorConfig {
     this.minConfidence = 0.5,
     this.enableZEstimation = true,
     this.preferredAcceleration,
+    this.skelLibraryDir,
   })  : assert(maxPoses >= 1 && maxPoses <= 10),
         assert(minConfidence >= 0.0 && minConfidence <= 1.0);
 
@@ -104,6 +127,7 @@ class PoseDetectorConfig {
     double? minConfidence,
     bool? enableZEstimation,
     AccelerationMode? preferredAcceleration,
+    String? skelLibraryDir,
   }) {
     return PoseDetectorConfig(
       mode: mode ?? this.mode,
@@ -112,6 +136,7 @@ class PoseDetectorConfig {
       enableZEstimation: enableZEstimation ?? this.enableZEstimation,
       preferredAcceleration:
           preferredAcceleration ?? this.preferredAcceleration,
+      skelLibraryDir: skelLibraryDir ?? this.skelLibraryDir,
     );
   }
 
@@ -125,6 +150,7 @@ class PoseDetectorConfig {
       preferredAcceleration: json['preferredAcceleration'] != null
           ? AccelerationMode.fromString(json['preferredAcceleration'] as String)
           : null,
+      skelLibraryDir: json['skelLibraryDir'] as String?,
     );
   }
 
@@ -137,6 +163,7 @@ class PoseDetectorConfig {
       'enableZEstimation': enableZEstimation,
       if (preferredAcceleration != null)
         'preferredAcceleration': preferredAcceleration!.name,
+      if (skelLibraryDir != null) 'skelLibraryDir': skelLibraryDir,
     };
   }
 
@@ -154,7 +181,8 @@ class PoseDetectorConfig {
         other.maxPoses == maxPoses &&
         other.minConfidence == minConfidence &&
         other.enableZEstimation == enableZEstimation &&
-        other.preferredAcceleration == preferredAcceleration;
+        other.preferredAcceleration == preferredAcceleration &&
+        other.skelLibraryDir == skelLibraryDir;
   }
 
   @override
@@ -164,5 +192,6 @@ class PoseDetectorConfig {
         minConfidence,
         enableZEstimation,
         preferredAcceleration,
+        skelLibraryDir,
       );
 }
