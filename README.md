@@ -30,7 +30,7 @@ Hardware-accelerated pose detection Flutter plugin using MediaPipe PoseLandmarke
 |----------|-------------|-------|--------------|
 | iOS 14+ | TFLite 2.14 + CoreML/Metal | pose_detector + pose_landmarks_detector | Neural Engine → GPU → CPU |
 | Android API 31+ | MediaPipe Tasks 0.10.14 | pose_landmarker_lite.task | GPU → CPU |
-| Android API 31+ (Snapdragon) | TFLite + QNN Delegate | movenet_lightning.tflite | NPU (HTP) → CPU |
+| Android API 31+ (Snapdragon) | TFLite + QNN Delegate | pose_landmarks_detector.tflite | NPU (HTP) → CPU |
 
 ## Installation
 
