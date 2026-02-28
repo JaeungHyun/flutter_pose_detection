@@ -11,7 +11,6 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import kotlinx.coroutines.*
 import com.example.npu_pose_detection.models.*
-import java.util.Base64
 
 /**
  * Flutter plugin for NPU-accelerated pose detection on Android.
@@ -166,16 +165,15 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
         }
 
         val args = call.arguments as? Map<*, *>
-        val imageDataBase64 = args?.get("imageData") as? String
+        val imageData = args?.get("imageData") as? ByteArray
 
-        if (imageDataBase64 == null) {
+        if (imageData == null) {
             result.success(errorResponse("invalidImageFormat", "Invalid image data"))
             return
         }
 
         scope.launch {
             try {
-                val imageData = Base64.getDecoder().decode(imageDataBase64)
                 val poseResult = withContext(Dispatchers.IO) {
                     activeDetector?.detectPose(imageData)
                 }
@@ -257,7 +255,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     // MARK: - Device Capabilities
 
     private fun handleGetDeviceCapabilities(result: Result) {
-        val hasNnapi = Build.VERSION.SDK_INT in 27..34
+        val hasNnapi = Build.VERSION.SDK_INT in 27..36
         val hasGpu = true // Most devices support GPU delegate
 
         result.success(mapOf(
@@ -298,14 +296,9 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
             return
         }
 
-        // Decode base64 bytes
+        // Extract binary bytes directly
         val decodedPlanes = planes.map { plane ->
-            val bytesBase64 = plane["bytes"] as? String
-            val bytes = if (bytesBase64 != null) {
-                Base64.getDecoder().decode(bytesBase64)
-            } else {
-                ByteArray(0)
-            }
+            val bytes = plane["bytes"] as? ByteArray ?: ByteArray(0)
             mapOf(
                 "bytes" to bytes,
                 "bytesPerRow" to (plane["bytesPerRow"] as? Int ?: 0),
