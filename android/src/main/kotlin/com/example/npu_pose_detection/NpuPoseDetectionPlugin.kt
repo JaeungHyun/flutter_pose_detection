@@ -255,7 +255,7 @@ class NpuPoseDetectionPlugin : FlutterPlugin, MethodCallHandler, EventChannel.St
     // MARK: - Device Capabilities
 
     private fun handleGetDeviceCapabilities(result: Result) {
-        val hasNnapi = Build.VERSION.SDK_INT in 27..36
+        val hasNnapi = Build.VERSION.SDK_INT in 27..34 // NNAPI is supported on Android 8.1 to 14
         val hasGpu = true // Most devices support GPU delegate
 
         result.success(mapOf(
