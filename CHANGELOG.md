@@ -134,7 +134,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Landmark mapping to MediaPipe 33-point format
 - **Android Support**: TensorFlow Lite with MoveNet Lightning model
   - GPU Delegate for hardware acceleration
-  - NNAPI support for devices API 27-34
+  - NNAPI support for devices API 27-34 (Depreciated on 35+)
   - CPU fallback with XNNPack optimization
 - **Core Features**:
   - Static image pose detection (`detectPose`, `detectPoseFromFile`)

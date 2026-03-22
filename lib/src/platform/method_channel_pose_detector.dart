@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/services.dart';
 
@@ -16,6 +15,7 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
   /// The method channel used to interact with the native platform.
   final MethodChannel _methodChannel = const MethodChannel(
     PoseDetectorChannels.methodChannel,
+    StandardMethodCodec(),
   );
 
   /// The event channel for camera frame streaming.
@@ -80,10 +80,7 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
     try {
       final result = await _methodChannel.invokeMethod<Map<dynamic, dynamic>>(
         'detectPose',
-        {
-          'imageData': base64Encode(imageData),
-          'imageFormat': 'jpeg',
-        },
+        {'imageData': imageData, 'imageFormat': 'jpeg'},
       );
 
       if (result == null) {
@@ -199,10 +196,7 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
     if (!_isInitialized) return;
 
     try {
-      await _methodChannel.invokeMethod<Map<dynamic, dynamic>>(
-        'dispose',
-        {},
-      );
+      await _methodChannel.invokeMethod<Map<dynamic, dynamic>>('dispose', {});
     } catch (_) {
       // Ignore disposal errors
     } finally {
@@ -260,12 +254,12 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
     _ensureInitialized();
 
     try {
-      // Encode plane bytes to base64
+      // Encode plane bytes directly
       final encodedPlanes = planes.map((plane) {
         final bytes = plane['bytes'];
         if (bytes is Uint8List) {
           return {
-            'bytes': base64Encode(bytes),
+            'bytes': bytes,
             'bytesPerRow': plane['bytesPerRow'] ?? 0,
             'bytesPerPixel': plane['bytesPerPixel'] ?? 1,
           };
@@ -273,16 +267,14 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
         return plane;
       }).toList();
 
-      final result = await _methodChannel.invokeMethod<Map<dynamic, dynamic>>(
-        'processFrame',
-        {
-          'planes': encodedPlanes,
-          'width': width,
-          'height': height,
-          'format': format,
-          'rotation': rotation,
-        },
-      );
+      final result = await _methodChannel
+          .invokeMethod<Map<dynamic, dynamic>>('processFrame', {
+            'planes': encodedPlanes,
+            'width': width,
+            'height': height,
+            'format': format,
+            'rotation': rotation,
+          });
 
       if (result == null) {
         throw DetectionError.fromCode(DetectionErrorCode.unknown);
@@ -326,37 +318,38 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
     _methodChannel.invokeMethod('startCameraDetection');
 
     // Listen to event channel
-    _frameEventSubscription =
-        _frameEventChannel.receiveBroadcastStream().listen(
-      (dynamic event) {
-        if (event is Map) {
-          final type = event['type'] as String?;
-          switch (type) {
-            case 'frame':
-              final frameResult = FrameResult.fromJson(_convertMap(event));
-              _frameStreamController?.add(frameResult);
-              break;
-            case 'error':
-              final error = event['error'] as Map?;
-              if (error != null) {
-                _frameStreamController?.addError(
-                  DetectionError.fromJson(_convertMap(error)),
-                );
+    _frameEventSubscription = _frameEventChannel
+        .receiveBroadcastStream()
+        .listen(
+          (dynamic event) {
+            if (event is Map) {
+              final type = event['type'] as String?;
+              switch (type) {
+                case 'frame':
+                  final frameResult = FrameResult.fromJson(_convertMap(event));
+                  _frameStreamController?.add(frameResult);
+                  break;
+                case 'error':
+                  final error = event['error'] as Map?;
+                  if (error != null) {
+                    _frameStreamController?.addError(
+                      DetectionError.fromJson(_convertMap(error)),
+                    );
+                  }
+                  break;
+                case 'end':
+                  _frameStreamController?.close();
+                  break;
               }
-              break;
-            case 'end':
-              _frameStreamController?.close();
-              break;
-          }
-        }
-      },
-      onError: (error) {
-        _frameStreamController?.addError(error);
-      },
-      onDone: () {
-        _frameStreamController?.close();
-      },
-    );
+            }
+          },
+          onError: (error) {
+            _frameStreamController?.addError(error);
+          },
+          onDone: () {
+            _frameStreamController?.close();
+          },
+        );
 
     return _frameStreamController!.stream;
   }
@@ -385,10 +378,7 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
     try {
       final result = await _methodChannel.invokeMethod<Map<dynamic, dynamic>>(
         'analyzeVideo',
-        {
-          'videoPath': videoPath,
-          'frameInterval': frameInterval,
-        },
+        {'videoPath': videoPath, 'frameInterval': frameInterval},
       );
 
       if (result == null) {
@@ -423,39 +413,41 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
     _videoProgressController =
         StreamController<VideoAnalysisProgress>.broadcast();
 
-    _videoProgressSubscription =
-        _videoProgressEventChannel.receiveBroadcastStream().listen(
-      (dynamic event) {
-        if (event is Map) {
-          final type = event['type'] as String?;
-          switch (type) {
-            case 'progress':
-              final progress =
-                  VideoAnalysisProgress.fromJson(_convertMap(event));
-              _videoProgressController?.add(progress);
-              break;
-            case 'error':
-              final error = event['error'] as Map?;
-              if (error != null) {
-                _videoProgressController?.addError(
-                  DetectionError.fromJson(_convertMap(error)),
-                );
+    _videoProgressSubscription = _videoProgressEventChannel
+        .receiveBroadcastStream()
+        .listen(
+          (dynamic event) {
+            if (event is Map) {
+              final type = event['type'] as String?;
+              switch (type) {
+                case 'progress':
+                  final progress = VideoAnalysisProgress.fromJson(
+                    _convertMap(event),
+                  );
+                  _videoProgressController?.add(progress);
+                  break;
+                case 'error':
+                  final error = event['error'] as Map?;
+                  if (error != null) {
+                    _videoProgressController?.addError(
+                      DetectionError.fromJson(_convertMap(error)),
+                    );
+                  }
+                  break;
+                case 'complete':
+                case 'cancelled':
+                  _videoProgressController?.close();
+                  break;
               }
-              break;
-            case 'complete':
-            case 'cancelled':
-              _videoProgressController?.close();
-              break;
-          }
-        }
-      },
-      onError: (error) {
-        _videoProgressController?.addError(error);
-      },
-      onDone: () {
-        _videoProgressController?.close();
-      },
-    );
+            }
+          },
+          onError: (error) {
+            _videoProgressController?.addError(error);
+          },
+          onDone: () {
+            _videoProgressController?.close();
+          },
+        );
 
     return _videoProgressController!.stream;
   }
@@ -505,10 +497,7 @@ class MethodChannelPoseDetector extends PoseDetectorPlatform {
         'results': results != null ? _convertMap(results) : {},
       };
     } on PlatformException catch (e) {
-      return {
-        'success': false,
-        'error': e.message ?? 'Platform exception',
-      };
+      return {'success': false, 'error': e.message ?? 'Platform exception'};
     }
   }
 }

@@ -134,11 +134,12 @@ public class NpuPoseDetectionPlugin: NSObject, FlutterPlugin {
         }
 
         guard let args = call.arguments as? [String: Any],
-              let imageDataBase64 = args["imageData"] as? String,
-              let imageData = Data(base64Encoded: imageDataBase64) else {
+            let typedData = args["imageData"] as? FlutterStandardTypedData else {
             result(errorResponse(code: "invalidImageFormat", message: "Invalid image data"))
             return
         }
+
+        let imageData = typedData.data
 
         DispatchQueue.global(qos: .userInitiated).async {
             do {
@@ -359,10 +360,11 @@ public class NpuPoseDetectionPlugin: NSObject, FlutterPlugin {
 
     private func createPixelBuffer(from planes: [[String: Any]], width: Int, height: Int) -> CVPixelBuffer? {
         guard let firstPlane = planes.first,
-              let bytesBase64 = firstPlane["bytes"] as? String,
-              let bytes = Data(base64Encoded: bytesBase64) else {
+            let typedData = firstPlane["bytes"] as? FlutterStandardTypedData else {
             return nil
         }
+
+        let bytes = typedData.data
 
         var pixelBuffer: CVPixelBuffer?
         let status = CVPixelBufferCreate(
